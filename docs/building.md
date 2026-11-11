@@ -118,3 +118,13 @@ printf '%s\n' '{"op":"type","text":"uname -a\n"}' | nc -U /tmp/vista$(id -u)/<id
 Bump `version` in the workspace `Cargo.toml`, build with a Developer ID
 (`CODESIGN_IDENTITY=… scripts/bundle.sh`), notarize and staple the app,
 then `scripts/dmg.sh`.
+
+Windows media packaging requires `wimlib` on the build Mac (`brew install wimlib`).
+`scripts/windows.sh` copies its executable, library, licenses and source link into
+`target/windows`, rewrites library paths, and checks that no Homebrew library
+paths remain. The bundle includes these tools; users do not need Homebrew.
+
+`scripts/firmware.sh` builds Vista’s Windows UEFI boot loader and display bridge
+from `crates/firmware` for `aarch64-unknown-uefi`. It uses the Apache-compatible
+`r-efi` protocol bindings and Rust’s UEFI linker. Windows packaging runs this
+step and includes both `.efi` files in the app’s Windows resources.

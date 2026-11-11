@@ -24,7 +24,7 @@ enum Command {
 fn available(command: Command, state: State, process: bool, files: bool, visible: bool) -> bool {
   use Command::*;
   match command {
-    Start | Background => files && !process,
+    Start | Background => files && (!process || state == State::Error),
     Show => process && !visible,
     Hide => process && visible,
     Pause | Suspend => process && state == State::Running,
@@ -217,6 +217,71 @@ pub fn machine(
   })
 }
 
+pub fn library(library: &Entity<Library>, cx: &mut App) -> Entity<ContextMenu> {
+  let library = library.clone();
+  cx.new(move |cx| {
+    ContextMenu::new(cx)
+      .width(236.)
+      .item("New Machine…", move |_, cx| {
+        library.update(cx, |library, cx| {
+          library.select(crate::state::Page::Create, cx)
+        })
+      })
+      .item("Add Existing Machine…", |window, cx| {
+        window.dispatch_action(Box::new(crate::actions::ImportMachine), cx)
+      })
+  })
+}
+
+pub fn job(
+  job: &vista_kit::jobs::Job,
+  library: &Entity<Library>,
+  cx: &mut App,
+) -> Entity<ContextMenu> {
+  let id = job.id.clone();
+  let library = library.clone();
+  let details = library.clone();
+  let details_id = id.clone();
+  let finished = job.phase.is_finished();
+  let status = format!(
+    "{}: {}",
+    job.spec.name,
+    job.message.as_deref().unwrap_or(job.phase.label())
+  );
+  cx.new(move |cx| {
+    ContextMenu::new(cx)
+      .width(236.)
+      .item("Show Details", move |_, cx| {
+        details.update(cx, |library, cx| {
+          library.select(crate::state::Page::Job(details_id.clone()), cx)
+        })
+      })
+      .item("Copy Status", move |_, cx| {
+        cx.write_to_clipboard(gpui::ClipboardItem::new_string(status.clone()))
+      })
+      .divider()
+      .item(
+        if finished {
+          "Dismiss"
+        } else {
+          "Cancel Creation"
+        },
+        move |_, cx| {
+          library.update(cx, |library, cx| {
+            let Some(job) = library.jobs.iter().find(|job| job.id == id) else {
+              return;
+            };
+            if job.phase.is_finished() {
+              library.dismiss_job(&id, cx);
+            } else {
+              library.cancel_job(&id, cx);
+            }
+          });
+        },
+      )
+  })
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -234,6 +299,7 @@ mod tests {
     assert!(available(Command::Pause, State::Running, true, true, true));
     assert!(!available(Command::Pause, State::Paused, true, true, true));
     assert!(available(Command::Resume, State::Paused, true, true, true));
+    assert!(available(Command::Start, State::Error, true, true, true));
     assert!(!available(
       Command::Snapshot,
       State::Installing,

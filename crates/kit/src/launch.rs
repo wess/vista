@@ -22,7 +22,9 @@ pub fn runner() -> Result<PathBuf> {
     return Ok(PathBuf::from(path));
   }
   let exe = std::env::current_exe()?;
-  let dir = exe.parent().ok_or_else(|| Error::msg("no executable directory"))?;
+  let dir = exe
+    .parent()
+    .ok_or_else(|| Error::msg("no executable directory"))?;
   let candidates = [
     dir.join("vistamachine"),
     // Vista.app/Contents/MacOS/<exe> -> Vista.app/Contents/Helpers/…
@@ -59,7 +61,17 @@ pub fn start(path: &Path, visible: bool) -> Result<u32> {
   if crate::paths::socket(&bundle.config.id).exists()
     && std::os::unix::net::UnixStream::connect(crate::paths::socket(&bundle.config.id)).is_ok()
   {
-    return Err(Error::msg(format!("{} is already running.", bundle.config.name)));
+    return Err(Error::msg(format!(
+      "{} is already running.",
+      bundle.config.name
+    )));
+  }
+  if bundle.config.os == crate::machine::Os::Windows {
+    if let Some(crate::machine::Installer::Iso { path, .. }) = &bundle.config.installer {
+      if std::path::Path::new(path) == bundle.file("install.img") {
+        crate::windows::media::repair_alignment(std::path::Path::new(path))?;
+      }
+    }
   }
   let log = std::fs::OpenOptions::new()
     .create(true)
@@ -84,12 +96,20 @@ pub fn start(path: &Path, visible: bool) -> Result<u32> {
   Ok(child.id())
 }
 
-/// Wait until a just-started machine answers on its socket.
+/// Wait for startup to finish or report an error; a listening socket alone is not readiness.
 pub async fn wait_ready(id: &str, limit: Duration) -> Option<Live> {
   let deadline = tokio::time::Instant::now() + limit;
   while tokio::time::Instant::now() < deadline {
     if let Some(live) = crate::ipc::status(id).await {
-      return Some(live);
+      if matches!(
+        live.state,
+        crate::machine::State::Running
+          | crate::machine::State::Paused
+          | crate::machine::State::Installing
+          | crate::machine::State::Error
+      ) {
+        return Some(live);
+      }
     }
     tokio::time::sleep(Duration::from_millis(150)).await;
   }

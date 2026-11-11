@@ -96,6 +96,23 @@ next start.
 
 See [Windows](windows.md).
 
+## Creation progress
+
+Click a creation job in the sidebar to see its current step, publisher requests,
+elapsed time, download size and percentage, speed and estimated remaining time,
+and activity history. Unknown download sizes show an activity indicator instead
+of a percentage. Copy Details provides diagnostics without account passwords.
+
+Cancel Creation stops installer discovery and downloads as well as media preparation.
+Downloads keep partial files for a later retry. Jobs run in a detached worker,
+so closing the library leaves creation running. An exited worker is reported as
+an interrupted creation instead of appearing busy forever. Installer discovery
+has a 90-second limit; stalled network reads fail after 30 seconds.
+
+Failed or cancelled jobs remain available for inspection, retry, or dismissal.
+Changing the system or installer opens the creation picker, where you can also
+choose a local installer.
+
 ## The machine page
 
 Select a machine in the sidebar. Right-click (or Control-click) a machine
@@ -103,7 +120,9 @@ for its context menu: start or resume, show or hide its window, pause,
 suspend, shut down, take a snapshot, clone, reveal in Finder, or delete.
 Only actions available in the machine’s current state appear. Force stop
 and deletion ask for confirmation; a missing machine can be removed from
-the library.
+the library. Right-click a creation job for **Copy Status** and
+**Cancel Creation** (or **Dismiss** after it finishes). Right-click empty
+sidebar space for **New Machine…** and **Add Existing Machine…**.
 
 The header shows its system, hardware and state, and the buttons that make
 sense right now:

@@ -76,6 +76,7 @@ pub fn client() -> reqwest::Client {
   reqwest::Client::builder()
     .user_agent(concat!("Vista/", env!("CARGO_PKG_VERSION")))
     .connect_timeout(std::time::Duration::from_secs(20))
+    .read_timeout(std::time::Duration::from_secs(30))
     .build()
     .expect("http client")
 }
@@ -95,7 +96,10 @@ pub async fn fetch(
   }
   let part = dest.with_extension(format!(
     "{}.part",
-    dest.extension().and_then(|e| e.to_str()).unwrap_or("download")
+    dest
+      .extension()
+      .and_then(|e| e.to_str())
+      .unwrap_or("download")
   ));
 
   // Hash what is already on disk so the digest covers the whole file.

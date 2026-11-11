@@ -11,15 +11,19 @@ use vista_kit::machine::{Bus, Installer};
 
 use crate::util::{describe, url};
 
-unsafe fn attachment(path: &Path, readonly: bool) -> Result<Retained<VZStorageDeviceAttachment>, String> {
-  let attachment = VZDiskImageStorageDeviceAttachment::initWithURL_readOnly_cachingMode_synchronizationMode_error(
-    VZDiskImageStorageDeviceAttachment::alloc(),
-    &url(path),
-    readonly,
-    VZDiskImageCachingMode::Automatic,
-    VZDiskImageSynchronizationMode::Full,
-  )
-  .map_err(|err| format!("Couldn't open {}: {}", path.display(), describe(&err)))?;
+unsafe fn attachment(
+  path: &Path,
+  readonly: bool,
+) -> Result<Retained<VZStorageDeviceAttachment>, String> {
+  let attachment =
+    VZDiskImageStorageDeviceAttachment::initWithURL_readOnly_cachingMode_synchronizationMode_error(
+      VZDiskImageStorageDeviceAttachment::alloc(),
+      &url(path),
+      readonly,
+      VZDiskImageCachingMode::Automatic,
+      VZDiskImageSynchronizationMode::Full,
+    )
+    .map_err(|err| format!("Couldn't open {}: {}", path.display(), describe(&err)))?;
   Ok(Retained::into_super(attachment))
 }
 
@@ -32,10 +36,12 @@ unsafe fn device(
       VZVirtioBlockDeviceConfiguration::alloc(),
       attachment,
     )),
-    Bus::Nvme => Retained::into_super(VZNVMExpressControllerDeviceConfiguration::initWithAttachment(
-      VZNVMExpressControllerDeviceConfiguration::alloc(),
-      attachment,
-    )),
+    Bus::Nvme => Retained::into_super(
+      VZNVMExpressControllerDeviceConfiguration::initWithAttachment(
+        VZNVMExpressControllerDeviceConfiguration::alloc(),
+        attachment,
+      ),
+    ),
     Bus::Usb => Retained::into_super(VZUSBMassStorageDeviceConfiguration::initWithAttachment(
       VZUSBMassStorageDeviceConfiguration::alloc(),
       attachment,
@@ -63,7 +69,9 @@ pub unsafe fn apply(
         if !media.exists() {
           return Err(format!("The installer {} is missing.", media.display()));
         }
-        devices.push(device(&*attachment(media, true)?, Bus::Usb));
+        let writable = bundle.config.os == vista_kit::machine::Os::Windows
+          && media == bundle.file("install.img");
+        devices.push(device(&*attachment(media, !writable)?, Bus::Usb));
       }
     }
   }

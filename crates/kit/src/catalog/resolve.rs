@@ -12,6 +12,7 @@ pub struct Resolved {
   pub filename: String,
   pub version: String,
   pub sha256: Option<String>,
+  pub sha1: Option<String>,
   pub size: Option<u64>,
 }
 
@@ -47,12 +48,38 @@ struct PopBuild {
 
 /// Find the current installer for an entry.
 pub async fn resolve(client: &reqwest::Client, entry: &Entry) -> Result<Resolved> {
+  resolve_with_status(client, entry, &mut |_| {}).await
+}
+
+pub async fn resolve_with_status(
+  client: &reqwest::Client,
+  entry: &Entry,
+  status: &mut (dyn FnMut(&str) + Send),
+) -> Result<Resolved> {
+  tokio::time::timeout(
+    std::time::Duration::from_secs(90),
+    discover(client, entry, status),
+  )
+  .await
+  .map_err(|_| {
+    Error::msg(
+      "Installer discovery timed out after 90 seconds. The publisher did not respond in time",
+    )
+  })?
+}
+
+async fn discover(
+  client: &reqwest::Client,
+  entry: &Entry,
+  status: &mut (dyn FnMut(&str) + Send),
+) -> Result<Resolved> {
   // The directory the file was found in, with its listing, for checksum
   // names given as patterns.
   let mut listed: Option<Vec<String>> = None;
   let mut release: Option<String> = None;
   let url = match entry.source {
     Source::Listing { index, pattern } => {
+      status("Reading the publisher’s installer listings.");
       let pattern = regex(pattern)?;
       let mut found = None;
       // Newest release directory first; skip ones with only betas in them.
@@ -62,15 +89,25 @@ pub async fn resolve(client: &reqwest::Client, entry: &Entry) -> Result<Resolved
           if let Some(at) = index.find("{n}") {
             release = dir[at..].split('/').next().map(str::to_string);
           }
-          let base = if dir.ends_with('/') { dir.clone() } else { format!("{dir}/") };
+          let base = if dir.ends_with('/') {
+            dir.clone()
+          } else {
+            format!("{dir}/")
+          };
           found = Some(format!("{base}{file}"));
           listed = Some(names);
           break;
         }
       }
-      found.ok_or_else(|| Error::msg(format!("{} has no installer published right now", entry.title())))?
+      found.ok_or_else(|| {
+        Error::msg(format!(
+          "{} has no installer published right now",
+          entry.title()
+        ))
+      })?
     }
     Source::Sums { sums, pattern } => {
+      status("Reading the publisher’s installer checksums.");
       let pattern = regex(pattern)?;
       let text = page(client, sums).await?;
       let names: Vec<String> = text
@@ -78,38 +115,53 @@ pub async fn resolve(client: &reqwest::Client, entry: &Entry) -> Result<Resolved
         .filter_map(|line| line.split_whitespace().nth(1))
         .map(|name| name.trim_start_matches('*').to_string())
         .collect();
-      let file = newest(names.iter(), &pattern)
-        .ok_or_else(|| Error::msg(format!("{} has no installer published right now", entry.title())))?;
+      let file = newest(names.iter(), &pattern).ok_or_else(|| {
+        Error::msg(format!(
+          "{} has no installer published right now",
+          entry.title()
+        ))
+      })?;
       format!("{}{file}", directory(sums))
     }
     Source::Direct { url } => url.to_string(),
     Source::Pop { api } => {
-      let build: PopBuild = client.get(api).send().await?.error_for_status()?.json().await?;
+      status("Asking the publisher for the latest release.");
+      let build: PopBuild = client
+        .get(api)
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
       return Ok(Resolved {
         filename: filename(&build.url),
         version: build.version.unwrap_or_else(|| entry.version.to_string()),
         sha256: build.sha_sum,
+        sha1: None,
         size: build.size,
         url: build.url,
       });
     }
     Source::Macos { major } => {
+      status("Reading Apple’s macOS restore-image catalog.");
       let release = super::macos::release(client, major).await?;
       return Ok(Resolved {
         filename: filename(&release.url),
         url: release.url,
         version: release.version,
         sha256: release.sha256sum,
+        sha1: None,
         size: (release.filesize > 0).then_some(release.filesize),
       });
     }
     Source::Windows => {
-      let link = crate::windows::download::link(client).await?;
+      let link = crate::windows::download::link_with_status(client, status).await?;
       return Ok(Resolved {
         filename: link.filename.clone(),
         url: link.url,
         version: link.version,
         sha256: link.sha256,
+        sha1: link.sha1,
         size: link.size,
       });
     }
@@ -127,7 +179,11 @@ pub async fn resolve(client: &reqwest::Client, entry: &Entry) -> Result<Resolved
       } else if sum.url.starts_with("http") {
         Some(sum.url.replace("{file}", &file))
       } else {
-        Some(format!("{}{}", directory(&url), sum.url.replace("{file}", &file)))
+        Some(format!(
+          "{}{}",
+          directory(&url),
+          sum.url.replace("{file}", &file)
+        ))
       };
       match location {
         Some(location) => match page(client, &location).await {
@@ -139,6 +195,7 @@ pub async fn resolve(client: &reqwest::Client, entry: &Entry) -> Result<Resolved
     }
     None => None,
   };
+  status("Checking the installer’s download size.");
   let size = client
     .head(&url)
     .send()
@@ -164,6 +221,7 @@ pub async fn resolve(client: &reqwest::Client, entry: &Entry) -> Result<Resolved
     filename: file,
     version,
     sha256,
+    sha1: None,
     size,
   })
 }
@@ -178,6 +236,9 @@ mod tests {
     assert_eq!(directory(url), "https://example.com/a/b/");
     assert_eq!(filename(url), "file.iso");
     assert_eq!(version_in("Rocky-10.2-aarch64-boot.iso"), "10.2");
-    assert_eq!(version_in("Fedora-Workstation-Live-45-1.4.aarch64.iso"), "1.4");
+    assert_eq!(
+      version_in("Fedora-Workstation-Live-45-1.4.aarch64.iso"),
+      "1.4"
+    );
   }
 }

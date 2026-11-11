@@ -21,6 +21,7 @@ use crate::runtime;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Page {
   Machine(String),
+  Job(String),
   Create,
   Settings,
   Welcome,
@@ -59,9 +60,13 @@ impl Library {
     let store = runtime::block_on(Store::open()).ok();
     let settings = match &store {
       Some(store) => {
-        let _ = runtime::block_on(store.adopt(std::path::Path::new(
-          &runtime::block_on(store.settings()).unwrap_or_default().location,
-        )));
+        let _ = runtime::block_on(
+          store.adopt(std::path::Path::new(
+            &runtime::block_on(store.settings())
+              .unwrap_or_default()
+              .location,
+          )),
+        );
         runtime::block_on(store.settings()).unwrap_or_default()
       }
       None => Settings::default(),
@@ -115,12 +120,17 @@ impl Library {
         })
         .await;
         if let Ok((machines, jobs)) = gathered {
-          if this.update(cx, |lib, cx| lib.apply(machines, jobs, cx)).is_err() {
+          if this
+            .update(cx, |lib, cx| lib.apply(machines, jobs, cx))
+            .is_err()
+          {
             break;
           }
         }
       }
-      cx.background_executor().timer(Duration::from_millis(1000)).await;
+      cx.background_executor()
+        .timer(Duration::from_millis(1000))
+        .await;
     })
     .detach();
   }
@@ -131,12 +141,22 @@ impl Library {
     // A job that just finished brings its machine into view.
     for job in &jobs {
       let before = self.jobs.iter().find(|j| j.id == job.id);
-      if let (Some(before), Some(id)) = (before, &job.machine) {
-        if !before.phase.is_finished() && job.phase == vista_kit::jobs::Phase::Done {
-          self.page = Page::Machine(id.clone());
+      if let Some(before) = before {
+        if !before.phase.is_finished()
+          && job.phase == vista_kit::jobs::Phase::Done
+          && self.page == Page::Job(job.id.clone())
+        {
+          if let Some(id) = &job.machine {
+            self.page = Page::Machine(id.clone());
+          }
         }
         if !before.phase.is_finished() && job.phase == vista_kit::jobs::Phase::Failed {
-          cx.emit(Notice::Failed(job.message.clone().unwrap_or_else(|| "Creating the machine failed.".into())));
+          cx.emit(Notice::Failed(
+            job
+              .message
+              .clone()
+              .unwrap_or_else(|| "Creating the machine failed.".into()),
+          ));
         }
       }
     }
@@ -148,10 +168,15 @@ impl Library {
     let exists = |id: &str| self.machines.iter().any(|m| m.id() == id);
     match &self.page {
       Page::Machine(id) if !exists(id) => self.page = self.default_page(),
+      Page::Job(id) if !self.jobs.iter().any(|job| job.id == *id) => {
+        self.page = self.default_page()
+      }
       Page::Welcome if first || !self.machines.is_empty() => self.page = self.default_page(),
       _ => {}
     }
-    self.screens.retain(|id, _| self.machines.iter().any(|m| m.id() == id && m.is_running()));
+    self
+      .screens
+      .retain(|id, _| self.machines.iter().any(|m| m.id() == id && m.is_running()));
     cx.notify();
   }
 
@@ -170,7 +195,12 @@ impl Library {
         .read_with(cx, |lib, _| match &lib.page {
           Page::Machine(id) => lib
             .machine(id)
-            .filter(|m| m.live.as_ref().map(|l| l.visible && l.state == vista_kit::machine::State::Running).unwrap_or(false))
+            .filter(|m| {
+              m.live
+                .as_ref()
+                .map(|l| l.visible && l.state == vista_kit::machine::State::Running)
+                .unwrap_or(false)
+            })
             .map(|m| m.id().to_string()),
           _ => None,
         })

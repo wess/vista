@@ -1,0 +1,17 @@
+[package]
+name = "vistafirmware"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[workspace]
+
+[dependencies]
+r-efi = "=6.0.0"
+
+[profile.release]
+opt-level = "z"
+lto = true
+panic = "abort"
+strip = true

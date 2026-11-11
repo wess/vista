@@ -2,7 +2,6 @@
 //! ~25 GB), so creation runs as a background job in its own process and the
 //! agent polls it.
 
-use std::os::unix::process::CommandExt;
 use std::time::Duration;
 
 use serde_json::{json, Value};
@@ -86,7 +85,10 @@ pub fn describe(job: &Job) -> Value {
     "message": job.message,
     "machine": job.machine,
     "finished": job.phase.is_finished(),
-    "worker_alive": !job.is_orphaned(),
+    "worker_alive": !job.phase.is_finished() && !job.is_orphaned(),
+    "bytes_per_second": job.rate,
+    "elapsed_seconds": ((if job.phase.is_finished() { job.updated } else { vista_kit::machine::now() }) - job.created).max(0),
+    "activity": job.events,
   })
 }
 
@@ -96,7 +98,10 @@ pub async fn call(context: &Context, name: &str, args: &Value) -> Option<Result<
     "get_job" => get(context, args).await,
     "list_jobs" => {
       let jobs: Vec<Value> = jobs::list().iter().take(20).map(describe).collect();
-      Ok(Output::data(format!("{} jobs.", jobs.len()), json!({"jobs": jobs})))
+      Ok(Output::data(
+        format!("{} jobs.", jobs.len()),
+        json!({"jobs": jobs}),
+      ))
     }
     "cancel_job" => match required(args, "job") {
       Ok(id) => match find(&id) {
@@ -172,20 +177,7 @@ async fn create(context: &Context, args: &Value) -> Result<Output, String> {
 
 /// Start `vistamcp job <id>` detached, so it outlives this session.
 fn spawn(id: &str) -> Result<(), String> {
-  let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-  let mut command = std::process::Command::new(exe);
-  command
-    .args(["job", id])
-    .stdin(std::process::Stdio::null())
-    .stdout(std::process::Stdio::null())
-    .stderr(std::process::Stdio::null());
-  unsafe {
-    command.pre_exec(|| {
-      libc::setsid();
-      Ok(())
-    });
-  }
-  command.spawn().map(|_| ()).map_err(|e| e.to_string())
+  jobs::spawn(id).map_err(|error| error.to_string())
 }
 
 async fn wait(id: &str, seconds: f64) -> Option<Job> {
@@ -214,13 +206,20 @@ async fn get(_context: &Context, args: &Value) -> Result<Output, String> {
 
 /// The background worker: `vistamcp job <id>`.
 pub async fn work(id: &str) -> i32 {
-  let Some(job) = jobs::load(id) else {
+  let Some(mut job) = jobs::load(id) else {
     eprintln!("vistamcp: no job {id}");
     return 1;
   };
+  job.pid = std::process::id();
+  let _ = jobs::save(&job);
   let store = match vista_kit::store::Store::open().await {
     Ok(store) => store,
     Err(err) => {
+      job.transition(
+        vista_kit::jobs::Phase::Failed,
+        format!("Could not open the creation library: {err}"),
+      );
+      let _ = jobs::save(&job);
       eprintln!("vistamcp: {err}");
       return 1;
     }

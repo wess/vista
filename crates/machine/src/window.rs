@@ -76,6 +76,9 @@ pub fn show(runner: &mut Runner) {
   let app = NSApplication::sharedApplication(runner.mtm);
   app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
   if let Some(window) = &runner.window {
+    if window.isMiniaturized() {
+      window.deminiaturize(None);
+    }
     window.makeKeyAndOrderFront(None);
     if let Some(view) = &runner.view {
       window.makeFirstResponder(Some(view));

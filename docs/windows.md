@@ -1,62 +1,60 @@
 # Windows
 
-Windows 11 for Arm is **experimental** in Vista. Apple's Virtualization
-framework doesn't support Windows. Vista gets as far as the framework allows
-and is honest about the rest: the download and the install disk are built and
-tested; a Windows install running to completion on this framework has not
-been verified.
+Vista installs Windows 11 Pro for Arm64 using Microsoft's installer catalog,
+a prepared USB installer, and an unattended local account. Apple's
+Virtualization framework does not officially support Windows; Vista uses
+host capabilities and a firmware display bridge to boot it.
 
-## What Vista does
+## Creation and first start
 
-1. **Gets the ISO from Microsoft.** Vista uses the same download service as
-   Microsoft's [Windows 11 for Arm download page](https://www.microsoft.com/en-us/software-download/windows11arm64),
-   including the anti-fraud handshake the page performs, and picks the
-   English (United States) multi-edition ISO. Links last 24 hours; the file is
-   about 8.5 GB and resumes if interrupted.
-2. **Fetches the Arm64 virtio drivers** (virtio-win, from the Fedora
-   project), once, for every Windows machine.
-3. **Builds an install disk.** The framework has no CD drive, and Windows only
-   reads ISO 9660 from one, so the ISO can't be plugged in as it is. Vista
-   builds a USB disk with macOS's own tools (`hdiutil`, `diskutil`, `ditto`):
-   - a FAT32 partition the firmware boots from, holding everything on the ISO
-     except the system image;
-   - an exFAT partition holding `install.wim`, which is too big for FAT32;
-   - `autounattend.xml`, which lifts Setup's TPM, Secure Boot, CPU, RAM and
-     storage checks;
-   - `vista\install.cmd`, which partitions the disk, applies Windows 11 Pro
-     with DISM, adds the drivers and makes the disk bootable — Setup's own
-     disk step is reported to fail on this framework's disks, so Vista
-     doesn't use it;
-   - `vista\unattend.xml`, which creates your local account, signs it in, and
-     skips the out-of-box screens and the Microsoft account requirement;
-   - the drivers under `$WinPEDriver$`, where Setup finds them on its own.
-4. **Boots it with the switches Windows needs.** Windows Boot Manager needs
-   the CPU's performance counters and fine-grained trap handling emulated, and
-   a linear framebuffer to draw on. The framework has these but doesn't
-   publish them; Vista turns each on only when the host answers it.
+1. Vista selects English (US), Arm64, Professional media from Microsoft's
+   Media Creation Tool catalog. It checks the ESD download against the
+   checksum in the HTTPS catalog. The browser ISO download service is a
+   fallback; a local Arm64 ISO can also be selected.
+2. Bundled wimlib extracts Windows Setup and exports the boot and Pro system
+   images. Windows hardware drivers come from the virtio-win distribution.
+3. Vista builds a sector-aligned USB disk with a boot partition and an exFAT
+   partition for the system image. The boot loader starts Vista's display
+   bridge before Windows Boot Manager.
+4. Windows PE loads the storage driver, identifies the single empty guest
+   disk, partitions it, applies Windows 11 Pro, installs hardware drivers,
+   and copies the account settings and boot firmware into the new system.
+5. The script writes an explicit installation result and shuts down.
+   Vista only detaches Windows installer media after a successful result,
+   then starts Windows from its system disk. A partial disk write is not
+   treated as a successful installation.
+6. The first Windows boot finishes system configuration and creates the
+   user profile. This can take several minutes. Later starts use the
+   installed system directly.
 
-When the install script finishes it shuts the machine down. Vista sees a
-power-off after more than 3 GB was written, removes the install disk, and
-boots Windows from its own disk, where the answer file takes over.
-
-## What to expect
-
-- It may not boot on every Mac or macOS version: the switches above are
-  private to Apple's framework and can change without notice.
-- The display can stay on the firmware framebuffer until Windows loads the
-  virtio display driver.
-- There's no TPM, so BitLocker and anything else that needs one won't work.
-- Windows isn't activated: Vista installs Windows 11 Pro without a product
-  key. Activate it with your own.
-- [Vista Tools](guesttools.md) doesn't run in Windows. Agents drive Windows
-  through the screen, keyboard and pointer tools.
-- Microsoft blocks the download service for some networks, including many
-  VPNs. If Vista can't get a link, download the ISO from Microsoft's page in a
-  browser and use **Use an Installer on This Mac…**; Vista builds the install
-  disk the same way.
+During Windows PE installation, the library reports the actual image-apply
+percentage and driver-installation step from the installation log. The log
+and result are in `vista/install.log` and `vista/result` on the installer
+boot partition. A copy of the successful log is kept at
+`C:\Windows\Panther\vista.log` in the installed system.
 
 ## The account
 
-The username and password you give when creating the machine become a local
-administrator account that signs in automatically after setup. Without them,
-Vista uses `vista` / `vista` — change that password once you're in.
+The username and password supplied when creating a machine become its local
+administrator account. Automatic sign-in is configured when requested.
+Without account details, Vista uses `vista` / `vista`; change that password
+once signed in.
+
+## Compatibility
+
+- The CPU emulation switches used for Windows are private framework APIs
+  and can change with macOS versions.
+- Vista's firmware display bridge supplies the framebuffer needed before
+  Windows loads its virtio display driver. Both the installation media and
+  the installed system carry the boot loader and bridge.
+- Windows is not activated. Activate Windows 11 Pro with your own license.
+- There is no virtual TPM. Features requiring one are unavailable.
+- Vista Tools currently supports Linux and macOS guests. Agents can control
+  Windows through the screen, keyboard and pointer APIs.
+- Failed starts expose the error and offer Try Again. Retrying closes the
+  failed runner before starting a fresh one.
+
+The catalog's Microsoft delivery address uses HTTP. Vista requires the
+checksum supplied in the HTTPS catalog before preparing that downloaded
+media. A rejected ISO-service request is an installer-discovery error,
+not evidence that the VM hardware or Windows boot is working.

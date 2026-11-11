@@ -25,6 +25,7 @@ echo "[bundle] Vista $version"
 
 cargo build --release -p vista-app -p vista-mcp -p vista-machine
 scripts/tools.sh
+scripts/windows.sh
 
 app="dist/Vista.app"
 helper="$app/Contents/Helpers/VistaMachine.app"
@@ -34,6 +35,7 @@ mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" "$helper/Contents/MacOS
 cp target/release/vista "$app/Contents/MacOS/vista"
 cp target/release/vistamcp "$app/Contents/MacOS/vistamcp"
 cp assets/icon.icns "$app/Contents/Resources/icon.icns"
+cp -R target/windows "$app/Contents/Resources/windows"
 cp target/release/vistamachine "$helper/Contents/MacOS/vistamachine"
 cp assets/icon.icns "$helper/Contents/Resources/icon.icns"
 cp -R target/tools "$helper/Contents/Resources/tools"
@@ -75,6 +77,8 @@ runtime=()
 sign() {
   codesign --force ${runtime[@]+"${runtime[@]}"} --entitlements assets/vista.entitlements -s "$identity" "$1"
 }
+codesign --force ${runtime[@]+"${runtime[@]}"} -s "$identity" "$app/Contents/Resources/windows/libwim.dylib"
+codesign --force ${runtime[@]+"${runtime[@]}"} -s "$identity" "$app/Contents/Resources/windows/imagex"
 sign "$helper/Contents/Resources/tools/macos/vistatools"
 sign "$helper/Contents/MacOS/vistamachine"
 sign "$helper"

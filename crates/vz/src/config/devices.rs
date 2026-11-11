@@ -21,12 +21,13 @@ pub unsafe fn apply(vm: &VZVirtualMachineConfiguration, bundle: &Bundle) -> Resu
   // Display
   let graphics: Retained<VZGraphicsDeviceConfiguration> = if mac {
     let device = VZMacGraphicsDeviceConfiguration::new();
-    let display = VZMacGraphicsDisplayConfiguration::initWithWidthInPixels_heightInPixels_pixelsPerInch(
-      VZMacGraphicsDisplayConfiguration::alloc(),
-      config.display.width as isize,
-      config.display.height as isize,
-      config.display.ppi as isize,
-    );
+    let display =
+      VZMacGraphicsDisplayConfiguration::initWithWidthInPixels_heightInPixels_pixelsPerInch(
+        VZMacGraphicsDisplayConfiguration::alloc(),
+        config.display.width as isize,
+        config.display.height as isize,
+        config.display.ppi as isize,
+      );
     device.setDisplays(&NSArray::from_retained_slice(&[display]));
     Retained::into_super(device)
   } else {
@@ -39,14 +40,7 @@ pub unsafe fn apply(vm: &VZVirtualMachineConfiguration, bundle: &Bundle) -> Resu
     device.setScanouts(&NSArray::from_retained_slice(&[scanout]));
     Retained::into_super(device)
   };
-  let mut displays = Vec::new();
-  if config.os == Os::Windows {
-    if let Some(framebuffer) = crate::modern::linear_framebuffer(config.display.width, config.display.height) {
-      displays.push(framebuffer);
-    }
-  }
-  displays.push(graphics);
-  vm.setGraphicsDevices(&NSArray::from_retained_slice(&displays));
+  vm.setGraphicsDevices(&NSArray::from_retained_slice(&[graphics]));
 
   // Input. A Mac guest gets the Mac keyboard (with the globe key) and a
   // trackpad for gestures; the screen-coordinate pointer is the fallback for
@@ -61,7 +55,9 @@ pub unsafe fn apply(vm: &VZVirtualMachineConfiguration, bundle: &Bundle) -> Resu
   if mac {
     pointers.push(Retained::into_super(VZMacTrackpadConfiguration::new()));
   }
-  pointers.push(Retained::into_super(VZUSBScreenCoordinatePointingDeviceConfiguration::new()));
+  pointers.push(Retained::into_super(
+    VZUSBScreenCoordinatePointingDeviceConfiguration::new(),
+  ));
   vm.setPointingDevices(&NSArray::from_retained_slice(&pointers));
 
   // Sound
@@ -77,7 +73,9 @@ pub unsafe fn apply(vm: &VZVirtualMachineConfiguration, bundle: &Bundle) -> Resu
       streams.push(Retained::into_super(input));
     }
     sound.setStreams(&NSArray::from_retained_slice(&streams));
-    vm.setAudioDevices(&NSArray::from_retained_slice(&[Retained::into_super(sound)]));
+    vm.setAudioDevices(&NSArray::from_retained_slice(&[Retained::into_super(
+      sound,
+    )]));
   }
 
   vm.setEntropyDevices(&NSArray::from_retained_slice(&[Retained::into_super(
@@ -97,7 +95,11 @@ pub unsafe fn apply(vm: &VZVirtualMachineConfiguration, bundle: &Bundle) -> Resu
     let mut dirs: Vec<Retained<VZSharedDirectory>> = Vec::new();
     if let (true, Some(tools)) = (tools_in_shares, &tools) {
       names.push(string("Vista Tools"));
-      dirs.push(VZSharedDirectory::initWithURL_readOnly(VZSharedDirectory::alloc(), &url(tools), true));
+      dirs.push(VZSharedDirectory::initWithURL_readOnly(
+        VZSharedDirectory::alloc(),
+        &url(tools),
+        true,
+      ));
     }
     for share in &config.shares {
       let path = std::path::Path::new(&share.path);
@@ -117,7 +119,8 @@ pub unsafe fn apply(vm: &VZVirtualMachineConfiguration, bundle: &Bundle) -> Resu
       let keys: Vec<&NSString> = names.iter().map(|n| &**n).collect();
       let values: Vec<&VZSharedDirectory> = dirs.iter().map(|d| &**d).collect();
       let map = NSDictionary::from_slices(&keys, &values);
-      let share = VZMultipleDirectoryShare::initWithDirectories(VZMultipleDirectoryShare::alloc(), &map);
+      let share =
+        VZMultipleDirectoryShare::initWithDirectories(VZMultipleDirectoryShare::alloc(), &map);
       // macOS guests mount this tag by themselves under /Volumes/My Shared Files.
       let tag = if mac {
         VZVirtioFileSystemDeviceConfiguration::macOSGuestAutomountTag()
@@ -133,8 +136,10 @@ pub unsafe fn apply(vm: &VZVirtualMachineConfiguration, bundle: &Bundle) -> Resu
     }
   }
   if let (false, Some(tools)) = (mac, &tools) {
-    let directory = VZSharedDirectory::initWithURL_readOnly(VZSharedDirectory::alloc(), &url(tools), true);
-    let share = VZSingleDirectoryShare::initWithDirectory(VZSingleDirectoryShare::alloc(), &directory);
+    let directory =
+      VZSharedDirectory::initWithURL_readOnly(VZSharedDirectory::alloc(), &url(tools), true);
+    let share =
+      VZSingleDirectoryShare::initWithDirectory(VZSingleDirectoryShare::alloc(), &directory);
     let device = VZVirtioFileSystemDeviceConfiguration::initWithTag(
       VZVirtioFileSystemDeviceConfiguration::alloc(),
       &string("vistatools"),
@@ -143,7 +148,9 @@ pub unsafe fn apply(vm: &VZVirtualMachineConfiguration, bundle: &Bundle) -> Resu
     sharing.push(Retained::into_super(device));
   }
   if config.rosetta && config.os == Os::Linux && rosetta_installed() {
-    if let Ok(share) = VZLinuxRosettaDirectoryShare::initWithError(VZLinuxRosettaDirectoryShare::alloc()) {
+    if let Ok(share) =
+      VZLinuxRosettaDirectoryShare::initWithError(VZLinuxRosettaDirectoryShare::alloc())
+    {
       let device = VZVirtioFileSystemDeviceConfiguration::initWithTag(
         VZVirtioFileSystemDeviceConfiguration::alloc(),
         &string("rosetta"),
@@ -165,7 +172,9 @@ pub unsafe fn apply(vm: &VZVirtualMachineConfiguration, bundle: &Bundle) -> Resu
     spice.setSharesClipboard(true);
     port.setAttachment(Some(&spice));
     console.ports().setObject_atIndexedSubscript(Some(&port), 0);
-    vm.setConsoleDevices(&NSArray::from_retained_slice(&[Retained::into_super(console)]));
+    vm.setConsoleDevices(&NSArray::from_retained_slice(&[Retained::into_super(
+      console,
+    )]));
   }
 
   // A USB controller: installer media hang off it, and on macOS 27 the
@@ -189,7 +198,9 @@ pub unsafe fn apply(vm: &VZVirtualMachineConfiguration, bundle: &Bundle) -> Resu
     ) {
       let serial = VZVirtioConsoleDeviceSerialPortConfiguration::new();
       serial.setAttachment(Some(&attachment));
-      vm.setSerialPorts(&NSArray::from_retained_slice(&[Retained::into_super(serial)]));
+      vm.setSerialPorts(&NSArray::from_retained_slice(&[Retained::into_super(
+        serial,
+      )]));
     }
   }
 

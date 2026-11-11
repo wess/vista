@@ -84,31 +84,23 @@ pub fn setup() -> String {
 }
 
 pub fn script() -> String {
-  [
-    "@echo off",
-    "set MEDIA=%1",
-    "for %%d in (C D E F G H I J K L M N O P Q R S T U V W Y Z) do if exist %%d:\\sources\\install.wim set SRC=%%d:\\sources\\install.wim",
-    "for %%d in (C D E F G H I J K L M N O P Q R S T U V W Y Z) do if exist %%d:\\sources\\install.esd set SRC=%%d:\\sources\\install.esd",
-    "(echo select disk 0& echo clean& echo convert gpt& echo create partition efi size=260& echo format quick fs=fat32 label=System& echo assign letter=S& echo create partition msr size=16& echo create partition primary& echo format quick fs=ntfs label=Windows& echo assign letter=W) > X:\\vistadisk.txt",
-    "diskpart /s X:\\vistadisk.txt",
-    "dism /Apply-Image /ImageFile:%SRC% /Name:\"Windows 11 Pro\" /ApplyDir:W:\\",
-    "dism /Image:W:\\ /Add-Driver /Driver:%MEDIA%\\$WinPEDriver$ /Recurse",
-    "bcdboot W:\\Windows /s S: /f UEFI",
-    "mkdir W:\\Windows\\Panther",
-    "copy /y %MEDIA%\\vista\\unattend.xml W:\\Windows\\Panther\\unattend.xml",
-    "wpeutil shutdown",
-  ]
-  .join("\r\n")
+  include_str!("install.cmd")
+    .replace("\r\n", "\n")
+    .replace('\n', "\r\n")
 }
 
 pub fn system(name: &str, account: &Account) -> String {
   let computer = escape(&computer_name(name));
   let user = escape(&user_name(&account.username));
-  let full = escape(if account.fullname.is_empty() { &account.username } else { &account.fullname });
+  let full = escape(if account.fullname.is_empty() {
+    &account.username
+  } else {
+    &account.fullname
+  });
   let password = escape(&account.password);
   let autologon = if account.autologin {
     format!(
-      "<AutoLogon><Enabled>true</Enabled><Username>{user}</Username><Password><Value>{password}</Value><PlainText>true</PlainText></Password></AutoLogon>"
+      "<AutoLogon><Enabled>true</Enabled><LogonCount>999</LogonCount><Username>{user}</Username><Password><Value>{password}</Value><PlainText>true</PlainText></Password></AutoLogon>"
     )
   } else {
     String::new()
@@ -185,6 +177,7 @@ mod tests {
     let xml = system("Box", &account);
     assert!(xml.contains("A &amp; B"));
     assert!(xml.contains("p&lt;w&gt;"));
+    assert!(xml.contains("<LogonCount>999</LogonCount>"));
     assert!(setup().contains("BypassTPMCheck"));
   }
 }

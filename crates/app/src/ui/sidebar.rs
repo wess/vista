@@ -10,11 +10,18 @@ use super::glyph;
 use super::root::SIDEBAR;
 use crate::state::{Library, Machine, Page};
 
+#[derive(Clone)]
+pub enum Target {
+  Machine(String),
+  Job(String),
+  Library,
+}
+
 fn row(
   machine: &Machine,
   selected: bool,
   library: &Entity<Library>,
-  on_menu: impl Fn(String, &MouseDownEvent, &mut Window, &mut App) + Clone + 'static,
+  on_menu: impl Fn(Target, &MouseDownEvent, &mut Window, &mut App) + Clone + 'static,
   cx: &App,
 ) -> impl IntoElement {
   let t = theme(cx);
@@ -57,12 +64,12 @@ fn row(
     .on_mouse_down(MouseButton::Left, move |event, window, cx| {
       if event.modifiers.control {
         cx.stop_propagation();
-        control_menu(control_id.clone(), event, window, cx);
+        control_menu(Target::Machine(control_id.clone()), event, window, cx);
       }
     })
     .on_mouse_down(MouseButton::Right, move |event, window, cx| {
       cx.stop_propagation();
-      on_menu(menu_id.clone(), event, window, cx);
+      on_menu(Target::Machine(menu_id.clone()), event, window, cx);
     })
     .on_click(move |_, _, cx| {
       let id = id.clone();
@@ -107,7 +114,12 @@ fn row(
     )
 }
 
-fn job_row(job: &Job, library: &Entity<Library>, cx: &App) -> impl IntoElement {
+fn job_row(
+  job: &Job,
+  library: &Entity<Library>,
+  on_menu: impl Fn(Target, &MouseDownEvent, &mut Window, &mut App) + Clone + 'static,
+  cx: &App,
+) -> impl IntoElement {
   let t = theme(cx);
   let dimmed = t.dimmed().hsla();
   let text = t.text().hsla();
@@ -142,14 +154,41 @@ fn job_row(job: &Job, library: &Entity<Library>, cx: &App) -> impl IntoElement {
     (phase, _) => job
       .message
       .clone()
-      .filter(|_| phase == Phase::Failed)
+      .filter(|_| matches!(phase, Phase::Failed | Phase::Cancelled))
       .unwrap_or_else(|| phase.label().to_string()),
   };
   let finished = job.phase.is_finished();
   let fraction = job.fraction().unwrap_or(0.0) as f32;
   let id = job.id.clone();
+  let open = library.clone();
+  let open_id = id.clone();
   let library = library.clone();
+  let menu_id = id.clone();
+  let control_id = id.clone();
+  let control_menu = on_menu.clone();
   div()
+    .id(gpui::SharedString::from(format!("job-row-{id}")))
+    .on_mouse_down(MouseButton::Right, move |event, window, cx| {
+      cx.stop_propagation();
+      on_menu(Target::Job(menu_id.clone()), event, window, cx);
+    })
+    .on_mouse_down(MouseButton::Left, move |event, window, cx| {
+      if event.modifiers.control {
+        cx.stop_propagation();
+        control_menu(Target::Job(control_id.clone()), event, window, cx);
+      }
+    })
+    .cursor_pointer()
+    .rounded(px(8.))
+    .when(library.read(cx).page == Page::Job(id.clone()), |d| {
+      d.bg(t.primary().alpha(0.14))
+    })
+    .hover(|style| style.bg(t.surface_hover().hsla()))
+    .on_click(move |_, _, cx| {
+      open.update(cx, |library, cx| {
+        library.select(Page::Job(open_id.clone()), cx)
+      })
+    })
     .flex()
     .flex_col()
     .flex_none()
@@ -196,6 +235,7 @@ fn job_row(job: &Job, library: &Entity<Library>, cx: &App) -> impl IntoElement {
             .variant(Variant::Subtle)
             .size(Size::Sm)
             .on_click(move |_, _, cx| {
+              cx.stop_propagation();
               let id = id.clone();
               library.update(cx, |l, cx| {
                 if finished {
@@ -207,7 +247,7 @@ fn job_row(job: &Job, library: &Entity<Library>, cx: &App) -> impl IntoElement {
             }),
         ),
     )
-    .when(!finished, |d| {
+    .when(!finished && job.total.is_some(), |d| {
       d.child(Progress::new(fraction * 100.0).size(Size::Xs))
     })
 }
@@ -226,7 +266,7 @@ fn heading(label: &str, cx: &App) -> impl IntoElement {
 
 pub fn render(
   library: &Entity<Library>,
-  on_menu: impl Fn(String, &MouseDownEvent, &mut Window, &mut App) + Clone + 'static,
+  on_menu: impl Fn(Target, &MouseDownEvent, &mut Window, &mut App) + Clone + 'static,
   cx: &App,
 ) -> impl IntoElement {
   let t = theme(cx);
@@ -240,7 +280,7 @@ pub fn render(
   let jobs: Vec<Job> = lib
     .jobs
     .iter()
-    .filter(|j| j.phase != Phase::Done)
+    .filter(|j| j.phase != Phase::Done || lib.page == Page::Job(j.id.clone()))
     .cloned()
     .collect();
   let rows: Vec<gpui::AnyElement> = lib
@@ -259,11 +299,23 @@ pub fn render(
     .collect();
   let job_rows: Vec<gpui::AnyElement> = jobs
     .iter()
-    .map(|j| job_row(j, library, cx).into_any_element())
+    .map(|j| job_row(j, library, on_menu.clone(), cx).into_any_element())
     .collect();
   let empty = rows.is_empty();
   let settings = library.clone();
+  let background_menu = on_menu.clone();
   div()
+    .id("sidebar")
+    .on_mouse_down(MouseButton::Right, move |event, window, cx| {
+      cx.stop_propagation();
+      background_menu(Target::Library, event, window, cx);
+    })
+    .on_mouse_down(MouseButton::Left, move |event, window, cx| {
+      if event.modifiers.control {
+        cx.stop_propagation();
+        on_menu(Target::Library, event, window, cx);
+      }
+    })
     .flex()
     .flex_col()
     .flex_none()
@@ -292,7 +344,7 @@ pub fn render(
         })
         .children(rows)
         .when(!job_rows.is_empty(), |d| {
-          d.child(heading("Creating", cx)).children(job_rows)
+          d.child(heading("Creation jobs", cx)).children(job_rows)
         }),
     )
     .child(

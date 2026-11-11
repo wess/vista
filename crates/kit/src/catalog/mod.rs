@@ -14,7 +14,7 @@ mod sums;
 
 pub use linux::LINUX;
 pub use macos::{macos_versions, MacRelease};
-pub use resolve::{resolve, Resolved};
+pub use resolve::{resolve, resolve_with_status, Resolved};
 pub use sums::{parse_sums, SumFormat};
 
 use crate::machine::Os;

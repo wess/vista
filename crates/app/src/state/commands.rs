@@ -33,7 +33,10 @@ impl Library {
   }
 
   fn path_of(&self, id: &str) -> Option<PathBuf> {
-    self.machine(id).and_then(|m| m.bundle.as_ref()).map(|b| b.path.clone())
+    self
+      .machine(id)
+      .and_then(|m| m.bundle.as_ref())
+      .map(|b| b.path.clone())
   }
 
   pub fn start(&mut self, id: &str, visible: bool, cx: &mut Context<Self>) {
@@ -43,21 +46,43 @@ impl Library {
     self.task(
       async move {
         if let Some(live) = vista_kit::ipc::status(&id).await {
-          if visible && !live.visible {
-            let _ = vista_kit::ipc::call(&id, &Request::Show).await;
+          if live.state == vista_kit::machine::State::Error {
+            vista_kit::ipc::call(&id, &Request::Kill)
+              .await
+              .map_err(|error| error.to_string())?;
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+            while vista_kit::ipc::status(&id).await.is_some()
+              && std::time::Instant::now() < deadline
+            {
+              tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            }
+            if vista_kit::ipc::status(&id).await.is_some() {
+              return Err(
+                "The previous failed machine has not exited. Close it and try again.".into(),
+              );
+            }
+          } else {
+            if visible && !live.visible {
+              let _ = vista_kit::ipc::call(&id, &Request::Show).await;
+            }
+            return Ok(None);
           }
-          return Ok(None);
         }
         vista_kit::launch::start(&path, visible).map_err(|e| e.to_string())?;
         if let Some(store) = store {
           let _ = store.touch(&id).await;
         }
         match vista_kit::launch::wait_ready(&id, std::time::Duration::from_secs(30)).await {
-          Some(live) if live.state == vista_kit::machine::State::Error => {
-            Err(live.message.unwrap_or_else(|| "The machine failed to start.".into()))
-          }
+          Some(live) if live.state == vista_kit::machine::State::Error => Err(
+            live
+              .message
+              .unwrap_or_else(|| "The machine failed to start.".into()),
+          ),
           Some(_) => Ok(None),
-          None => Err(format!("The machine didn't start. See {}/machine.log.", path.display())),
+          None => Err(format!(
+            "The machine didn't start. See {}/machine.log.",
+            path.display()
+          )),
         }
       },
       cx,
@@ -69,9 +94,14 @@ impl Library {
     let id = id.to_string();
     self.task(
       async move {
-        match vista_kit::ipc::call(&id, &request).await.map_err(|e| e.to_string())? {
+        match vista_kit::ipc::call(&id, &request)
+          .await
+          .map_err(|e| e.to_string())?
+        {
           Response::Error { message } => Err(message),
-          Response::Snapshot(snapshot) => Ok(Some(format!("Took \u{201c}{}\u{201d}.", snapshot.name))),
+          Response::Snapshot(snapshot) => {
+            Ok(Some(format!("Took \u{201c}{}\u{201d}.", snapshot.name)))
+          }
           _ => Ok(None),
         }
       },
@@ -84,7 +114,9 @@ impl Library {
     if running {
       return self.control(id, Request::Snapshot { name }, cx);
     }
-    let Some(bundle) = self.machine(id).and_then(|m| m.bundle.clone()) else { return };
+    let Some(bundle) = self.machine(id).and_then(|m| m.bundle.clone()) else {
+      return;
+    };
     self.task(
       async move {
         let snapshot = Snapshots::take(&bundle, &name).map_err(|e| e.to_string())?;
@@ -95,7 +127,9 @@ impl Library {
   }
 
   pub fn revert(&mut self, id: &str, snapshot: String, cx: &mut Context<Self>) {
-    let Some(bundle) = self.machine(id).and_then(|m| m.bundle.clone()) else { return };
+    let Some(bundle) = self.machine(id).and_then(|m| m.bundle.clone()) else {
+      return;
+    };
     let id = id.to_string();
     self.task(
       async move {
@@ -116,7 +150,9 @@ impl Library {
   }
 
   pub fn delete_snapshot(&mut self, id: &str, snapshot: String, cx: &mut Context<Self>) {
-    let Some(bundle) = self.machine(id).and_then(|m| m.bundle.clone()) else { return };
+    let Some(bundle) = self.machine(id).and_then(|m| m.bundle.clone()) else {
+      return;
+    };
     self.task(
       async move {
         Snapshots::delete(&bundle, &snapshot).map_err(|e| e.to_string())?;
@@ -127,9 +163,14 @@ impl Library {
   }
 
   pub fn save_config(&mut self, config: Config, cx: &mut Context<Self>) {
-    let Some(path) = self.path_of(&config.id) else { return };
+    let Some(path) = self.path_of(&config.id) else {
+      return;
+    };
     let store = self.store.clone();
-    let running = self.machine(&config.id).map(|m| m.is_running()).unwrap_or(false);
+    let running = self
+      .machine(&config.id)
+      .map(|m| m.is_running())
+      .unwrap_or(false);
     self.task(
       async move {
         bundle::save(&path, &config).map_err(|e| e.to_string())?;
@@ -148,7 +189,9 @@ impl Library {
   }
 
   pub fn duplicate(&mut self, id: &str, cx: &mut Context<Self>) {
-    let Some(bundle) = self.machine(id).and_then(|m| m.bundle.clone()) else { return };
+    let Some(bundle) = self.machine(id).and_then(|m| m.bundle.clone()) else {
+      return;
+    };
     let store = self.store.clone();
     self.task(
       async move {
@@ -176,7 +219,10 @@ impl Library {
           bundle::delete(bundle).map_err(|e| e.to_string())?;
         }
         if let Some(store) = store {
-          store.forget(machine.id()).await.map_err(|e| e.to_string())?;
+          store
+            .forget(machine.id())
+            .await
+            .map_err(|e| e.to_string())?;
         }
         Ok(Some(if machine.bundle.is_some() {
           format!("Moved {} to the Trash.", machine.name())
@@ -190,18 +236,25 @@ impl Library {
 
   /// Start building a machine; the job shows in the sidebar.
   pub fn create(&mut self, spec: Spec, cx: &mut Context<Self>) {
-    let Some(store) = self.store.clone() else {
-      return cx.emit(Notice::Failed("The library database isn't available.".into()));
-    };
-    let job = Job::new(spec);
+    if self.store.is_none() {
+      return cx.emit(Notice::Failed(
+        "The library database isn't available.".into(),
+      ));
+    }
+    let mut job = Job::new(spec);
+    job.transition(
+      vista_kit::jobs::Phase::Queued,
+      "Waiting for the creation worker.".into(),
+    );
     if let Err(err) = vista_kit::jobs::save(&job) {
       return cx.emit(Notice::Failed(err.to_string()));
     }
-    self.jobs.insert(0, job.clone());
-    self.page = self.machines.first().map(|m| Page::Machine(m.id().to_string())).unwrap_or(Page::Welcome);
-    runtime::spawn(async move {
-      vista_kit::jobs::run(&store, job).await;
-    });
+    self.page = Page::Job(job.id.clone());
+    if let Err(error) = vista_kit::jobs::spawn(&job.id) {
+      job.transition(vista_kit::jobs::Phase::Failed, error.to_string());
+      let _ = vista_kit::jobs::save(&job);
+    }
+    self.jobs.insert(0, job);
     cx.notify();
   }
 
@@ -227,7 +280,10 @@ impl Library {
     self.task(
       async move {
         if let Some(store) = store {
-          store.save_settings(&settings).await.map_err(|e| e.to_string())?;
+          store
+            .save_settings(&settings)
+            .await
+            .map_err(|e| e.to_string())?;
         }
         Ok(None)
       },

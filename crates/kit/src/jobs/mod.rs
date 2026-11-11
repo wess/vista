@@ -10,9 +10,9 @@ mod file;
 mod run;
 
 pub use build::configure;
-pub use file::{list, load, remove, save};
 pub use build::guess_os;
-pub use run::{cancel, run};
+pub use file::{list, load, remove, save};
+pub use run::{cancel, run, spawn};
 
 use serde::{Deserialize, Serialize};
 
@@ -97,6 +97,13 @@ impl Phase {
   }
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Event {
+  pub phase: Phase,
+  pub message: String,
+  pub at: i64,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Job {
   pub id: String,
@@ -107,6 +114,8 @@ pub struct Job {
   pub received: u64,
   #[serde(default)]
   pub total: Option<u64>,
+  #[serde(default)]
+  pub rate: Option<f64>,
   #[serde(default)]
   pub message: Option<String>,
   /// The machine's id once the bundle exists.
@@ -119,6 +128,8 @@ pub struct Job {
   pub created: i64,
   #[serde(default)]
   pub updated: i64,
+  #[serde(default)]
+  pub events: Vec<Event>,
 }
 
 impl Job {
@@ -135,6 +146,33 @@ impl Job {
     }
   }
 
+  pub fn transition(&mut self, phase: Phase, message: String) {
+    self.phase = phase;
+    self.message = Some(message.clone());
+    self.updated = crate::machine::now();
+    self.events.push(Event {
+      phase,
+      message,
+      at: self.updated,
+    });
+    if self.events.len() > 100 {
+      self.events.remove(0);
+    }
+  }
+
+  pub fn title(&self) -> String {
+    if !self.spec.name.trim().is_empty() {
+      return self.spec.name.clone();
+    }
+    self
+      .spec
+      .system
+      .as_deref()
+      .and_then(crate::catalog::find)
+      .map(|entry| entry.title())
+      .unwrap_or_else(|| "New Machine".into())
+  }
+
   pub fn fraction(&self) -> Option<f64> {
     self
       .total
@@ -142,8 +180,81 @@ impl Job {
       .map(|t| (self.received as f64 / t as f64).clamp(0.0, 1.0))
   }
 
+  pub(super) fn recover(&mut self, cancelled: bool) -> bool {
+    let grace = self.phase == Phase::Queued && crate::machine::now() - self.created < 10;
+    let stalled = self.phase == Phase::Queued && crate::machine::now() - self.created > 30;
+    if grace || (!self.is_orphaned() && !stalled) {
+      return false;
+    }
+    self.transition(if cancelled { Phase::Cancelled } else { Phase::Failed },
+      if cancelled { "Cancelled." } else if stalled { "The creation worker did not start within 30 seconds. Try again." } else { "Creation was interrupted because its worker exited. Try again, or choose an installer already on your Mac." }.into());
+    true
+  }
+
   /// The worker died without finishing.
   pub fn is_orphaned(&self) -> bool {
-    !self.phase.is_finished() && self.pid != 0 && unsafe { libc::kill(self.pid as i32, 0) } != 0
+    !self.phase.is_finished()
+      && self.pid != 0
+      && unsafe { libc::kill(self.pid as i32, 0) } != 0
+      && std::io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH)
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  fn interrupted() -> Job {
+    let mut job = Job::new(Spec::default());
+    job.pid = i32::MAX as u32;
+    job.phase = Phase::Resolving;
+    job
+  }
+
+  #[test]
+  fn exited_worker_becomes_actionable_failure() {
+    let mut job = interrupted();
+    assert!(job.recover(false));
+    assert_eq!(job.phase, Phase::Failed);
+    assert!(job.message.as_deref().unwrap().contains("worker exited"));
+    assert_eq!(job.events.last().unwrap().phase, Phase::Failed);
+    assert!(!job.recover(false));
+  }
+
+  #[test]
+  fn cancellation_of_exited_worker_finishes_immediately() {
+    let mut job = interrupted();
+    assert!(job.recover(true));
+    assert_eq!(job.phase, Phase::Cancelled);
+  }
+
+  #[test]
+  fn live_worker_and_startup_grace_are_preserved() {
+    let mut job = interrupted();
+    job.pid = std::process::id();
+    assert!(!job.recover(false));
+    job.pid = i32::MAX as u32;
+    job.phase = Phase::Queued;
+    assert!(!job.recover(false));
+    job.created -= 11;
+    assert!(job.recover(false));
+  }
+
+  #[test]
+  fn queued_jobs_cannot_wait_forever_even_if_the_parent_is_alive() {
+    let mut job = Job::new(Spec::default());
+    job.created -= 31;
+    assert!(job.recover(false));
+    assert_eq!(job.phase, Phase::Failed);
+    assert!(job.message.unwrap().contains("did not start"));
+  }
+
+  #[test]
+  fn older_job_files_still_load() {
+    let job = Job::new(Spec::default());
+    let mut json = serde_json::to_value(&job).unwrap();
+    json.as_object_mut().unwrap().remove("events");
+    let loaded: Job = serde_json::from_value(json).unwrap();
+    assert!(loaded.events.is_empty());
   }
 }

@@ -4,6 +4,7 @@
 /dist
 **/Cargo.lock
 !/Cargo.lock
+!/crates/firmware/Cargo.lock
 
 # Native artifacts pulled/built for the embed layer
 /vendor

@@ -20,7 +20,15 @@ use crate::{Error, Result};
 /// virtio-win, pinned: the "stable" alias redirects to plain http.
 const VIRTIO: &str = "https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-0.1.302-1/virtio-win-0.1.302.iso";
 const DRIVERS: [&str; 9] = [
-  "viostor", "NetKVM", "viogpudo", "vioinput", "viorng", "vioserial", "viosock", "Balloon", "viofs",
+  "viostor",
+  "NetKVM",
+  "viogpudo",
+  "vioinput",
+  "viorng",
+  "vioserial",
+  "viosock",
+  "Balloon",
+  "viofs",
 ];
 
 fn run(program: &str, args: &[&str]) -> Result<String> {
@@ -44,10 +52,18 @@ fn plist_value(plist: &str, key: &str) -> Option<String> {
 fn mount(image: &Path) -> Result<(String, PathBuf)> {
   let plist = run(
     "/usr/bin/hdiutil",
-    &["attach", "-nobrowse", "-readonly", "-plist", &image.to_string_lossy()],
+    &[
+      "attach",
+      "-nobrowse",
+      "-readonly",
+      "-plist",
+      &image.to_string_lossy(),
+    ],
   )?;
-  let device = plist_value(&plist, "dev-entry").ok_or_else(|| Error::msg("hdiutil gave no device"))?;
-  let point = plist_value(&plist, "mount-point").ok_or_else(|| Error::msg("hdiutil gave no mount point"))?;
+  let device =
+    plist_value(&plist, "dev-entry").ok_or_else(|| Error::msg("hdiutil gave no device"))?;
+  let point =
+    plist_value(&plist, "mount-point").ok_or_else(|| Error::msg("hdiutil gave no mount point"))?;
   Ok((device, PathBuf::from(point)))
 }
 
@@ -55,8 +71,13 @@ fn detach(device: &str) {
   let _ = run("/usr/bin/hdiutil", &["detach", device, "-force"]);
 }
 
-fn copy(from: &Path, to: &Path) -> Result<()> {
-  run("/usr/bin/ditto", &[&from.to_string_lossy(), &to.to_string_lossy()]).map(|_| ())
+fn copy(from: &Path, to: &Path, cancel: Option<&Path>) -> Result<()> {
+  super::esd::command(
+    Path::new("/usr/bin/ditto"),
+    &[&from.to_string_lossy(), &to.to_string_lossy()],
+    cancel,
+  )
+  .map(|_| ())
 }
 
 /// Build `install.img` in the bundle and return its path.
@@ -66,6 +87,7 @@ pub async fn prepare(
   bundle: &Path,
   name: &str,
   account: &Account,
+  cancel: Option<PathBuf>,
 ) -> Result<PathBuf> {
   // The drivers ISO is shared by every Windows machine.
   let virtio = crate::paths::images().join("virtio-win.iso");
@@ -77,15 +99,27 @@ pub async fn prepare(
   let bundle = bundle.to_path_buf();
   let name = name.to_string();
   let account = account.clone();
-  tokio::task::spawn_blocking(move || build(&iso, &virtio, &bundle, &name, &account))
-    .await
-    .map_err(|e| Error::msg(e.to_string()))?
+  tokio::task::spawn_blocking(move || {
+    build(&iso, &virtio, &bundle, &name, &account, cancel.as_deref())
+  })
+  .await
+  .map_err(|e| Error::msg(e.to_string()))?
 }
 
-fn build(iso: &Path, virtio: &Path, bundle: &Path, name: &str, account: &Account) -> Result<PathBuf> {
+fn build(
+  iso: &Path,
+  virtio: &Path,
+  bundle: &Path,
+  name: &str,
+  account: &Account,
+  cancel: Option<&Path>,
+) -> Result<PathBuf> {
   let image = bundle.join("install.img");
-  let size = std::fs::metadata(iso)?.len() + 4 * 1024 * 1024 * 1024;
-  std::fs::File::create(&image)?.set_len(size)?;
+  let esd = iso
+    .extension()
+    .is_some_and(|extension| extension.eq_ignore_ascii_case("esd"));
+  let size = std::fs::metadata(iso)?.len() * if esd { 3 } else { 1 } + 4 * 1024 * 1024 * 1024;
+  std::fs::File::create(&image)?.set_len(sector_aligned(size))?;
 
   let attached = run(
     "/usr/bin/hdiutil",
@@ -107,19 +141,37 @@ fn build(iso: &Path, virtio: &Path, bundle: &Path, name: &str, account: &Account
   let outcome = (|| -> Result<()> {
     run(
       "/usr/sbin/diskutil",
-      &["partitionDisk", &disk, "GPT", "FAT32", "VISTABOOT", "3G", "ExFAT", "VISTAWIN", "R"],
+      &[
+        "partitionDisk",
+        &disk,
+        "GPT",
+        "FAT32",
+        "VISTABOOT",
+        "3G",
+        "ExFAT",
+        "VISTAWIN",
+        "R",
+      ],
     )?;
     let volumes = mounted(&disk)?;
     let (boot, data) = (&volumes[0], &volumes[1]);
 
-    let (iso_dev, source) = mount(iso)?;
+    let (iso_dev, source) = if iso
+      .extension()
+      .is_some_and(|extension| extension.eq_ignore_ascii_case("esd"))
+    {
+      (None, super::esd::unpack(iso, bundle, cancel)?)
+    } else {
+      let (device, source) = mount(iso)?;
+      (Some(device), source)
+    };
     let copied = (|| -> Result<()> {
       for entry in std::fs::read_dir(&source)?.flatten() {
         let name = entry.file_name();
         if name == "sources" {
           continue;
         }
-        copy(&entry.path(), &boot.join(&name))?;
+        copy(&entry.path(), &boot.join(&name), cancel)?;
       }
       std::fs::create_dir_all(boot.join("sources"))?;
       std::fs::create_dir_all(data.join("sources"))?;
@@ -130,12 +182,17 @@ fn build(iso: &Path, virtio: &Path, bundle: &Path, name: &str, account: &Account
         } else {
           boot.join("sources").join(&file)
         };
-        copy(&entry.path(), &target)?;
+        copy(&entry.path(), &target, cancel)?;
       }
       Ok(())
     })();
-    detach(&iso_dev);
+    if let Some(device) = iso_dev {
+      detach(&device);
+    }
     copied?;
+    if source == bundle.join("windows") {
+      let _ = std::fs::remove_dir_all(&source);
+    }
 
     let (virtio_dev, drivers) = mount(virtio)?;
     let injected = (|| -> Result<()> {
@@ -143,7 +200,7 @@ fn build(iso: &Path, virtio: &Path, bundle: &Path, name: &str, account: &Account
       for driver in DRIVERS {
         let folder = drivers.join(driver).join("w11").join("ARM64");
         if folder.is_dir() {
-          copy(&folder, &target.join(driver))?;
+          copy(&folder, &target.join(driver), cancel)?;
         }
       }
       Ok(())
@@ -155,6 +212,17 @@ fn build(iso: &Path, virtio: &Path, bundle: &Path, name: &str, account: &Account
     std::fs::create_dir_all(&vista)?;
     std::fs::write(boot.join("autounattend.xml"), unattend::setup())?;
     std::fs::write(vista.join("install.cmd"), unattend::script())?;
+    let resources = firmware()?;
+    let bootloader = boot.join("efi/boot/bootaa64.efi");
+    std::fs::rename(&bootloader, boot.join("efi/boot/windows.efi"))?;
+    std::fs::create_dir_all(boot.join("efi/vista"))?;
+    std::fs::copy(resources.join("boot.efi"), &bootloader)?;
+    std::fs::copy(
+      resources.join("display.efi"),
+      boot.join("efi/vista/display.efi"),
+    )?;
+    std::fs::copy(resources.join("boot.efi"), vista.join("boot.efi"))?;
+    std::fs::copy(resources.join("display.efi"), vista.join("display.efi"))?;
     std::fs::write(vista.join("unattend.xml"), unattend::system(name, account))?;
     let _ = run("/usr/sbin/dot_clean", &["-m", &boot.to_string_lossy()]);
     let _ = run("/usr/sbin/dot_clean", &["-m", &data.to_string_lossy()]);
@@ -169,7 +237,10 @@ fn build(iso: &Path, virtio: &Path, bundle: &Path, name: &str, account: &Account
 fn mounted(disk: &str) -> Result<Vec<PathBuf>> {
   let mut points = Vec::new();
   for slice in 1..=4 {
-    let info = run("/usr/sbin/diskutil", &["info", "-plist", &format!("{disk}s{slice}")]);
+    let info = run(
+      "/usr/sbin/diskutil",
+      &["info", "-plist", &format!("{disk}s{slice}")],
+    );
     let Ok(info) = info else { continue };
     let label = plist_value(&info, "VolumeName").unwrap_or_default();
     if label == "VISTABOOT" || label == "VISTAWIN" {
@@ -185,4 +256,72 @@ fn mounted(disk: &str) -> Result<Vec<PathBuf>> {
   }
   // VISTABOOT sorts before VISTAWIN.
   Ok(points.into_iter().map(|(_, p)| p).collect())
+}
+
+fn firmware() -> Result<PathBuf> {
+  let executable = std::env::current_exe()?;
+  let directory = executable
+    .parent()
+    .ok_or_else(|| Error::msg("No executable directory"))?;
+  [directory.join("../Resources/windows"), directory.join("../windows")].into_iter()
+    .find(|path| path.join("boot.efi").is_file() && path.join("display.efi").is_file())
+    .ok_or_else(|| Error::msg("Windows boot firmware is missing. Reinstall Vista or run scripts/firmware.sh for a development build."))
+}
+
+fn sector_aligned(size: u64) -> u64 {
+  size.div_ceil(512) * 512
+}
+
+pub fn repair_alignment(path: &Path) -> Result<()> {
+  use std::io::{Read, Seek, SeekFrom};
+  let mut file = std::fs::OpenOptions::new()
+    .read(true)
+    .write(true)
+    .open(path)?;
+  let size = file.metadata()?.len();
+  if size % 512 == 0 {
+    return Ok(());
+  }
+  let aligned = size / 512 * 512;
+  if aligned < 1024 {
+    return Err(Error::msg("The Windows installer image is too small."));
+  }
+  file.seek(SeekFrom::Start(512))?;
+  let mut header = [0u8; 40];
+  file.read_exact(&mut header)?;
+  let backup = u64::from_le_bytes(header[32..40].try_into().unwrap());
+  if &header[..8] != b"EFI PART" || backup != aligned / 512 - 1 {
+    return Err(Error::msg(
+      "The Windows installer has invalid disk geometry. Recreate it before starting.",
+    ));
+  }
+  file.set_len(aligned)?;
+  Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  #[test]
+  fn installer_images_round_to_a_complete_sector() {
+    assert_eq!(sector_aligned(17_876_480_770), 17_876_481_024);
+    assert_eq!(sector_aligned(4096), 4096);
+  }
+
+  #[test]
+  fn repair_preserves_gpt_sectors_and_removes_only_the_unused_tail() {
+    use std::io::{Seek, SeekFrom, Write};
+    let path =
+      std::env::temp_dir().join(format!("vistaalignment{}", uuid::Uuid::new_v4().simple()));
+    let mut file = std::fs::File::create(&path).unwrap();
+    file.set_len(1282).unwrap();
+    file.seek(SeekFrom::Start(512)).unwrap();
+    file.write_all(b"EFI PART").unwrap();
+    file.seek(SeekFrom::Start(544)).unwrap();
+    file.write_all(&1u64.to_le_bytes()).unwrap();
+    drop(file);
+    repair_alignment(&path).unwrap();
+    assert_eq!(std::fs::metadata(&path).unwrap().len(), 1024);
+    std::fs::remove_file(path).unwrap();
+  }
 }

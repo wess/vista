@@ -17,7 +17,7 @@ pub fn save(job: &Job) -> Result<()> {
 
 pub fn load(id: &str) -> Option<Job> {
   let text = std::fs::read_to_string(path(id)).ok()?;
-  serde_json::from_str(&text).ok()
+  serde_json::from_str(&text).ok().map(recover)
 }
 
 /// Every job, newest first.
@@ -30,6 +30,7 @@ pub fn list() -> Vec<Job> {
     .filter(|e| e.path().extension().map(|x| x == "json").unwrap_or(false))
     .filter_map(|e| std::fs::read_to_string(e.path()).ok())
     .filter_map(|text| serde_json::from_str(&text).ok())
+    .map(recover)
     .collect();
   jobs.sort_by_key(|j: &Job| std::cmp::Reverse(j.created));
   jobs
@@ -37,4 +38,11 @@ pub fn list() -> Vec<Job> {
 
 pub fn remove(id: &str) {
   let _ = std::fs::remove_file(path(id));
+}
+
+fn recover(mut job: Job) -> Job {
+  if job.recover(super::run::cancel_marker(&job.id).exists()) {
+    let _ = save(&job);
+  }
+  job
 }

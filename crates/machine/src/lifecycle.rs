@@ -138,24 +138,26 @@ fn watch_install() {
 /// Build the machine and power it on, resuming saved memory when there is
 /// some.
 fn launch(visible: bool, account: Option<Account>) {
-  let prepared = with(|runner| -> Result<(Retained<VZVirtualMachine>, PathBuf, bool), String> {
-    let installing = matches!(runner.bundle.config.installer, Some(Installer::Iso { .. }));
-    let built = vista_vz::build(&runner.bundle, installing)?;
-    runner.can_save = built.can_save;
-    runner.installing = installing;
-    let machine = unsafe {
-      VZVirtualMachine::initWithConfiguration(VZVirtualMachine::alloc(), &built.configuration)
-    };
-    unsafe { machine.setDelegate(Some(ProtocolObject::from_ref(&*runner.delegate))) };
-    window::attach(runner, &machine);
-    if visible {
-      window::show(runner);
-    }
-    runner.machine = Some(machine.clone());
-    runner.state = State::Starting;
-    runner.message = None;
-    Ok((machine, runner.bundle.file(SAVED), runner.can_save))
-  });
+  let prepared = with(
+    |runner| -> Result<(Retained<VZVirtualMachine>, PathBuf, bool), String> {
+      let installing = matches!(runner.bundle.config.installer, Some(Installer::Iso { .. }));
+      let built = vista_vz::build(&runner.bundle, installing)?;
+      runner.can_save = built.can_save;
+      runner.installing = installing;
+      let machine = unsafe {
+        VZVirtualMachine::initWithConfiguration(VZVirtualMachine::alloc(), &built.configuration)
+      };
+      unsafe { machine.setDelegate(Some(ProtocolObject::from_ref(&*runner.delegate))) };
+      window::attach(runner, &machine);
+      if visible {
+        window::show(runner);
+      }
+      runner.machine = Some(machine.clone());
+      runner.state = State::Starting;
+      runner.message = None;
+      Ok((machine, runner.bundle.file(SAVED), runner.can_save))
+    },
+  );
   match prepared {
     Some(Ok((machine, saved, can_save))) => {
       if saved.exists() && can_save {
@@ -192,7 +194,9 @@ fn cold_start(machine: Retained<VZVirtualMachine>, account: Option<Account>) {
   let options = account.and_then(|account| unsafe { vista_vz::modern::provisioning(&account) });
   unsafe {
     match options {
-      Some(options) => machine.startWithOptions_completionHandler(&Retained::into_super(options), &done),
+      Some(options) => {
+        machine.startWithOptions_completionHandler(&Retained::into_super(options), &done)
+      }
       None => machine.startWithCompletionHandler(&done),
     }
   }
@@ -240,10 +244,33 @@ pub fn stopped(error: Option<String>) {
       .system()
       .map(|disk| bundle::usage(&runner.bundle.file(&disk.file)))
       .unwrap_or(0);
-    if runner.installing && disk > INSTALLED {
-      runner.bundle.config.installer = None;
-      let _ = bundle::save(&runner.bundle.path, &runner.bundle.config);
-      return Next::Relaunch(runner.visible);
+    if runner.installing {
+      let windows = runner.bundle.config.os == vista_kit::machine::Os::Windows;
+      let installation = windows
+        .then(|| vista_kit::windows::progress::read(&runner.bundle.file("install.img")))
+        .flatten();
+      let complete = if windows {
+        installation
+          .as_ref()
+          .is_some_and(|install| install.result == Some(true))
+      } else {
+        disk > INSTALLED
+      };
+      if complete {
+        runner.bundle.config.installer = None;
+        let _ = bundle::save(&runner.bundle.path, &runner.bundle.config);
+        return Next::Relaunch(runner.visible);
+      }
+      if windows {
+        runner.fail(
+          installation
+            .map(|install| install.message)
+            .unwrap_or_else(|| {
+              "Windows Setup stopped before completing. Check the installation log.".into()
+            }),
+        );
+        return Next::Exit(1);
+      }
     }
     match runner.after {
       After::Restart => {
@@ -281,7 +308,11 @@ pub fn pause(reply: Reply) {
   }
   set_state(State::Pausing);
   let done = once(move |err| {
-    set_state(if err.is_none() { State::Paused } else { State::Running });
+    set_state(if err.is_none() {
+      State::Paused
+    } else {
+      State::Running
+    });
     reply(err.map_or(Ok(()), Err));
   });
   unsafe { machine.pauseWithCompletionHandler(&done) };
@@ -296,7 +327,11 @@ pub fn resume(reply: Reply) {
   }
   set_state(State::Resuming);
   let done = once(move |err| {
-    set_state(if err.is_none() { State::Running } else { State::Paused });
+    set_state(if err.is_none() {
+      State::Running
+    } else {
+      State::Paused
+    });
     reply(err.map_or(Ok(()), Err));
   });
   unsafe { machine.resumeWithCompletionHandler(&done) };
@@ -408,7 +443,9 @@ pub fn suspend(reply: Reply) {
 /// Snapshot the machine. While it runs, its memory goes into the snapshot
 /// too, so reverting resumes exactly here.
 pub fn snapshot(name: String, reply: SnapshotReply) {
-  let Some((bundle, was_running)) = with(|runner| (runner.bundle.clone(), runner.state == State::Running)) else {
+  let Some((bundle, was_running)) =
+    with(|runner| (runner.bundle.clone(), runner.state == State::Running))
+  else {
     return;
   };
   if machine().is_none() {
@@ -420,9 +457,8 @@ pub fn snapshot(name: String, reply: SnapshotReply) {
   };
   let saved = dir.join(SAVED);
   save_to(saved, move |result| {
-    let outcome = result.and_then(|_| {
-      Snapshots::capture(&bundle, &id, &dir, &name).map_err(|e| e.to_string())
-    });
+    let outcome =
+      result.and_then(|_| Snapshots::capture(&bundle, &id, &dir, &name).map_err(|e| e.to_string()));
     if outcome.is_err() {
       let _ = std::fs::remove_dir_all(&dir);
     }
@@ -449,7 +485,8 @@ pub fn eject() {
 /// The window's close button: suspend when memory can be saved, otherwise
 /// keep running in the background.
 pub fn close_window() {
-  let (can_save, live) = with(|runner| (runner.can_save, runner.state.is_live())).unwrap_or((false, false));
+  let (can_save, live) =
+    with(|runner| (runner.can_save, runner.state.is_live())).unwrap_or((false, false));
   if !live {
     exit(0);
   }

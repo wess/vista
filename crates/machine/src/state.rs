@@ -77,16 +77,31 @@ pub fn with<R>(f: impl FnOnce(&mut Runner) -> R) -> Option<R> {
 
 impl Runner {
   pub fn live(&self) -> Live {
-    let progress = self.install.as_ref().map(|install| install.fraction());
+    let windows = self.installing
+      && self.bundle.config.os == vista_kit::machine::Os::Windows
+      && self.state == State::Running;
+    let installation = windows
+      .then(|| vista_kit::windows::progress::read(&self.bundle.file("install.img")))
+      .flatten();
+    let progress = installation
+      .as_ref()
+      .map(|install| install.fraction)
+      .or_else(|| self.install.as_ref().map(|install| install.fraction()));
     let ip = if self.state.is_live() {
       vista_kit::net::lease(&self.bundle.config.mac)
     } else {
       None
     };
     Live {
-      state: self.state,
+      state: if windows {
+        State::Installing
+      } else {
+        self.state
+      },
       progress,
-      message: self.message.clone(),
+      message: installation
+        .map(|install| install.message)
+        .or_else(|| self.message.clone()),
       pid: std::process::id(),
       uptime: self.started.map(|at| at.elapsed().as_secs()).unwrap_or(0),
       ip,

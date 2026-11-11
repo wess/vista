@@ -72,6 +72,20 @@ impl Root {
           .map(|(_, d)| d.clone().into_any_element())
           .unwrap_or_else(|| div().into_any_element())
       }
+      Page::Job(id) => {
+        self.create = None;
+        let job = self
+          .library
+          .read(cx)
+          .jobs
+          .iter()
+          .find(|job| job.id == *id)
+          .cloned();
+        match job {
+          Some(job) => super::job::render(&job, &self.library, cx).into_any_element(),
+          None => div().into_any_element(),
+        }
+      }
       Page::Create => {
         let create = self
           .create
@@ -111,6 +125,14 @@ impl Render for Root {
         .machine(id)
         .map(|m| m.name().to_string())
         .unwrap_or_default(),
+      Page::Job(id) => self
+        .library
+        .read(cx)
+        .jobs
+        .iter()
+        .find(|job| job.id == *id)
+        .map(|job| job.title())
+        .unwrap_or_else(|| "Creation Details".into()),
       Page::Create => "New Machine".into(),
       Page::Settings => "Settings".into(),
       Page::Welcome => String::new(),
@@ -120,24 +142,44 @@ impl Render for Root {
     let creating = matches!(page, Page::Create);
 
     let root = cx.entity().downgrade();
-    let on_menu =
-      move |id: String, event: &gpui::MouseDownEvent, window: &mut Window, cx: &mut gpui::App| {
-        let _ = root.update(cx, |root, cx| {
-          if let Some(menu) = &root.menu {
-            menu.update(cx, |menu, cx| menu.close(window, cx));
+    let on_menu = move |target: super::sidebar::Target,
+                        event: &gpui::MouseDownEvent,
+                        window: &mut Window,
+                        cx: &mut gpui::App| {
+      let _ = root.update(cx, |root, cx| {
+        if let Some(menu) = &root.menu {
+          menu.update(cx, |menu, cx| menu.close(window, cx));
+        }
+        let menu = match target {
+          super::sidebar::Target::Machine(id) => {
+            root.library.update(cx, |library, cx| {
+              library.select(Page::Machine(id.clone()), cx)
+            });
+            let Some(machine) = root.library.read(cx).machine(&id).cloned() else {
+              return;
+            };
+            super::menu::machine(&machine, &root.library, &root.overlays, cx)
           }
-          root.library.update(cx, |library, cx| {
-            library.select(Page::Machine(id.clone()), cx)
-          });
-          let Some(machine) = root.library.read(cx).machine(&id).cloned() else {
-            return;
-          };
-          let menu = super::menu::machine(&machine, &root.library, &root.overlays, cx);
-          menu.update(cx, |menu, cx| menu.show(event.position, window, cx));
-          root.menu = Some(menu);
-          cx.notify();
-        });
-      };
+          super::sidebar::Target::Job(id) => {
+            let Some(job) = root
+              .library
+              .read(cx)
+              .jobs
+              .iter()
+              .find(|job| job.id == id)
+              .cloned()
+            else {
+              return;
+            };
+            super::menu::job(&job, &root.library, cx)
+          }
+          super::sidebar::Target::Library => super::menu::library(&root.library, cx),
+        };
+        menu.update(cx, |menu, cx| menu.show(event.position, window, cx));
+        root.menu = Some(menu);
+        cx.notify();
+      });
+    };
 
     let toolbar = div()
       .id("toolbar")

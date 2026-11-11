@@ -78,12 +78,14 @@ impl Detail {
           ));
       }
       State::Error => {
-        actions = actions.child(act(
-          "Close",
-          IconName::X,
-          Variant::Default,
-          Some(Request::Kill),
-        ));
+        actions = actions
+          .child(act("Try Again", IconName::Play, Variant::Filled, None))
+          .child(act(
+            "Close",
+            IconName::X,
+            Variant::Default,
+            Some(Request::Kill),
+          ));
       }
       _ => {
         let visible = live.as_ref().map(|l| l.visible).unwrap_or(false);
