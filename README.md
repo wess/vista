@@ -1,6 +1,6 @@
 # Vista
 
-Virtual machines for Apple silicon, on Apple's own Virtualization framework.
+Virtual machines for Apple silicon, on Apple's own Virtualization framework (more coming soon).
 
 Pick a system and Vista finds the current installer at its publisher,
 downloads and verifies it, builds the machine and boots it. Machines run side
