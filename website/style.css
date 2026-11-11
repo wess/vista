@@ -71,7 +71,7 @@ h2:hover .anchor, h3:hover .anchor, .anchor:focus { opacity: 1; }
 .article pre code { border: 0; padding: 0; background: transparent; color: #dce5f2; }
 .article table { border-collapse: collapse; width: 100%; display: block; overflow: auto; }
 .article th, .article td { border-bottom: 1px solid var(--line); padding: 10px 16px 10px 0; text-align: left; vertical-align: top; }
-.article blockquote { margin-left: 0; padding-left: 20px; border-left: 3px solid var(--blue); }
+.article blockquote { margin-left: 0; padding-left: 20px; border-left: 1px solid #3c4655; }
 .source { margin-top: 80px; padding-top: 24px; border-top: 1px solid var(--line); font-size: 13px; }
 footer { border-top: 1px solid var(--line); min-height: 110px; display: flex; align-items: center; justify-content: space-between; padding: 0 max(24px, calc((100vw - 1180px) / 2)); color: #727d8f; font-size: 13px; }
 footer a { color: #aab3c1; }
