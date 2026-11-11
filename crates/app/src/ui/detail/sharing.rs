@@ -13,7 +13,9 @@ use crate::state::Machine;
 fn mount_hint(os: Os) -> &'static str {
   match os {
     Os::Macos => "Shared folders appear in the guest under /Volumes/My Shared Files.",
-    Os::Linux => "In the guest: sudo mount -t virtiofs vista /mnt/vista (Vista Tools adds this to /etc/fstab).",
+    Os::Linux => {
+      "In the guest: sudo mount -t virtiofs vista /mnt/vista (Vista Tools adds this to /etc/fstab)."
+    }
     _ => "Shared folders use virtio-fs; the guest needs a driver for it.",
   }
 }
@@ -25,7 +27,12 @@ impl Detail {
     }
   }
 
-  pub fn sharing(&mut self, _machine: &Machine, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+  pub fn sharing(
+    &mut self,
+    _machine: &Machine,
+    _window: &mut Window,
+    cx: &mut Context<Self>,
+  ) -> impl IntoElement {
     let t = theme(cx);
     let dimmed = t.dimmed().hsla();
     let border = t.border().hsla();
@@ -52,10 +59,33 @@ impl Detail {
             .flex_col()
             .flex_1()
             .min_w(px(0.))
-            .child(div().text_size(px(13.)).child(share.name.clone()))
-            .child(div().text_size(px(11.)).text_color(dimmed).overflow_hidden().text_ellipsis().whitespace_nowrap().child(share.path.clone())),
+            .child(
+              div()
+                .text_size(px(13.))
+                .overflow_hidden()
+                .whitespace_normal()
+                .line_clamp(1)
+                .text_ellipsis()
+                .child(share.name.clone()),
+            )
+            .child(
+              div()
+                .text_size(px(11.))
+                .text_color(dimmed)
+                .overflow_hidden()
+                .text_ellipsis()
+                .whitespace_normal()
+                .line_clamp(1)
+                .child(share.path.clone()),
+            ),
         )
-        .when(share.readonly, |d| d.child(Badge::new("Read only").size(Size::Xs).variant(Variant::Light)))
+        .when(share.readonly, |d| {
+          d.child(
+            Badge::new("Read only")
+              .size(Size::Xs)
+              .variant(Variant::Light),
+          )
+        })
         .child(
           ActionIcon::new(SharedString::from(format!("unshare-{i}")), IconName::X)
             .label("Stop sharing")
@@ -132,9 +162,25 @@ impl Detail {
       .flex()
       .flex_col()
       .gap(px(8.))
-      .max_w(px(640.))
-      .child(div().text_size(px(13.)).font_weight(gpui::FontWeight::MEDIUM).child("Shared folders"))
-      .child(div().text_size(px(12.)).text_color(dimmed).child(mount_hint(draft.os)))
+      .w_full()
+      .max_w(px(760.))
+      .child(crate::ui::layout::heading(
+        "Sharing",
+        "Bring your files and tools along.",
+        cx,
+      ))
+      .child(
+        div()
+          .text_size(px(13.))
+          .font_weight(gpui::FontWeight::MEDIUM)
+          .child("Shared folders"),
+      )
+      .child(
+        div()
+          .text_size(px(12.))
+          .text_color(dimmed)
+          .child(mount_hint(draft.os)),
+      )
       .child(
         div()
           .rounded(px(10.))
@@ -143,31 +189,40 @@ impl Detail {
           .bg(surface)
           .overflow_hidden()
           .when(draft.shares.is_empty(), |d| {
-            d.child(div().p(px(14.)).text_size(px(12.)).text_color(dimmed).child("No folders shared."))
+            d.child(
+              div()
+                .p(px(14.))
+                .text_size(px(12.))
+                .text_color(dimmed)
+                .child("No folders shared."),
+            )
           })
           .children(folders),
       )
       .child(div().pb(px(12.)).child(add))
-      .when(draft.os == Os::Linux, |d| {
-        d.child(row(
-          "Clipboard",
-          "Copy and paste with the Mac (needs spice-vdagent in the guest).",
-          toggle("clipboard", draft.clipboard, |c, v| c.clipboard = v),
-          cx,
-        ))
-        .child(row(
-          "Rosetta",
-          "Run x86-64 Linux programs through Rosetta.",
-          toggle("rosetta", draft.rosetta, |c, v| c.rosetta = v),
-          cx,
-        ))
-      })
-      .child(row(
-        "Agent control",
-        "Let coding agents start, see and drive this machine through Vista's MCP server.",
-        toggle("agents", draft.agents, |c, v| c.agents = v),
-        cx,
-      ))
+      .child(
+        crate::ui::layout::group(cx)
+          .when(draft.os == Os::Linux, |d| {
+            d.child(row(
+              "Clipboard",
+              "Copy and paste with the Mac (needs spice-vdagent in the guest).",
+              toggle("clipboard", draft.clipboard, |c, v| c.clipboard = v),
+              cx,
+            ))
+            .child(row(
+              "Rosetta",
+              "Run x86-64 Linux programs through Rosetta.",
+              toggle("rosetta", draft.rosetta, |c, v| c.rosetta = v),
+              cx,
+            ))
+          })
+          .child(row(
+            "Agent control",
+            "Let coding agents start, see and drive this machine through Vista's MCP server.",
+            toggle("agents", draft.agents, |c, v| c.agents = v),
+            cx,
+          )),
+      )
       .into_any_element()
   }
 }

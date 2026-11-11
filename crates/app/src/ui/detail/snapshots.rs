@@ -9,7 +9,12 @@ use crate::state::Machine;
 use crate::ui::format;
 
 impl Detail {
-  pub fn snapshots(&mut self, machine: &Machine, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+  pub fn snapshots(
+    &mut self,
+    machine: &Machine,
+    _window: &mut Window,
+    cx: &mut Context<Self>,
+  ) -> impl IntoElement {
     let t = theme(cx);
     let dimmed = t.dimmed().hsla();
     let border = t.border().hsla();
@@ -58,52 +63,79 @@ impl Detail {
             .flex()
             .flex_col()
             .flex_1()
-            .child(div().text_size(px(13.)).child(snapshot.name.clone()))
-            .child(div().text_size(px(11.)).text_color(dimmed).child(format::ago(snapshot.created))),
+            .min_w(px(0.))
+            .child(
+              div()
+                .text_size(px(13.))
+                .overflow_hidden()
+                .whitespace_normal()
+                .line_clamp(1)
+                .text_ellipsis()
+                .child(snapshot.name.clone()),
+            )
+            .child(
+              div()
+                .text_size(px(11.))
+                .text_color(dimmed)
+                .child(format::ago(snapshot.created)),
+            ),
         )
-        .when(snapshot.live, |d| d.child(Badge::new("With memory").size(Size::Xs).variant(Variant::Light).color(ColorName::Indigo)))
+        .when(snapshot.live, |d| {
+          d.child(
+            Badge::new("With memory")
+              .size(Size::Xs)
+              .variant(Variant::Light)
+              .color(ColorName::Indigo),
+          )
+        })
         .child(
-          Button::new(SharedString::from(format!("revert-{}", snapshot.id)), "Revert")
-            .size(Size::Xs)
-            .variant(Variant::Default)
-            .on_click(move |_, window, cx| {
-              let lib = lib_revert.clone();
-              let id = id_revert.clone();
-              let snap = snap_revert.clone();
-              super::confirm::ask(
-                &overlays,
-                &format!("Revert to \u{201c}{name}\u{201d}?"),
-                if running {
-                  "The machine is stopped first. Everything since the snapshot is lost."
-                } else {
-                  "Everything since the snapshot is lost."
-                },
-                "Revert",
-                window,
-                cx,
-                move |cx| lib.update(cx, |l, cx| l.revert(&id, snap.clone(), cx)),
-              );
-            }),
+          Button::new(
+            SharedString::from(format!("revert-{}", snapshot.id)),
+            "Revert",
+          )
+          .size(Size::Xs)
+          .variant(Variant::Default)
+          .on_click(move |_, window, cx| {
+            let lib = lib_revert.clone();
+            let id = id_revert.clone();
+            let snap = snap_revert.clone();
+            super::confirm::ask(
+              &overlays,
+              &format!("Revert to \u{201c}{name}\u{201d}?"),
+              if running {
+                "The machine is stopped first. Everything since the snapshot is lost."
+              } else {
+                "Everything since the snapshot is lost."
+              },
+              "Revert",
+              window,
+              cx,
+              move |cx| lib.update(cx, |l, cx| l.revert(&id, snap.clone(), cx)),
+            );
+          }),
         )
         .child(
-          ActionIcon::new(SharedString::from(format!("delete-{}", snapshot.id)), IconName::Trash2)
-            .label("Delete snapshot")
-            .size(Size::Sm)
-            .variant(Variant::Subtle)
-            .on_click(move |_, window, cx| {
-              let lib = lib_delete.clone();
-              let id = id_delete.clone();
-              let snap = snap_delete.clone();
-              super::confirm::ask(
-                &overlays2,
-                &format!("Delete \u{201c}{name2}\u{201d}?"),
-                "The machine itself isn't affected.",
-                "Delete",
-                window,
-                cx,
-                move |cx| lib.update(cx, |l, cx| l.delete_snapshot(&id, snap.clone(), cx)),
-              );
-            }),
+          ActionIcon::new(
+            SharedString::from(format!("delete-{}", snapshot.id)),
+            IconName::Trash2,
+          )
+          .label("Delete snapshot")
+          .size(Size::Sm)
+          .variant(Variant::Subtle)
+          .on_click(move |_, window, cx| {
+            let lib = lib_delete.clone();
+            let id = id_delete.clone();
+            let snap = snap_delete.clone();
+            super::confirm::ask(
+              &overlays2,
+              &format!("Delete \u{201c}{name2}\u{201d}?"),
+              "The machine itself isn't affected.",
+              "Delete",
+              window,
+              cx,
+              move |cx| lib.update(cx, |l, cx| l.delete_snapshot(&id, snap.clone(), cx)),
+            );
+          }),
         )
     });
 
@@ -111,14 +143,16 @@ impl Detail {
       .flex()
       .flex_col()
       .gap(px(12.))
-      .max_w(px(680.))
+      .w_full()
+      .max_w(px(760.))
+      .child(crate::ui::layout::heading("Snapshots", "A familiar place to come back to.", cx))
       .child(
         div()
           .text_size(px(12.))
           .text_color(dimmed)
           .child("Snapshots are copy-on-write: instant, and they only use space as the machine changes. Taken while running, they keep the machine's memory too."),
       )
-      .child(div().flex().gap(px(8.)).items_end().child(div().flex_1().child(input)).child(take))
+      .child(div().flex().gap(px(8.)).items_end().child(div().flex_1().min_w(px(0.)).child(input)).child(take))
       .child(
         div()
           .rounded(px(10.))
@@ -127,7 +161,7 @@ impl Detail {
           .bg(surface)
           .overflow_hidden()
           .when(machine.snapshots.is_empty(), |d| {
-            d.child(div().p(px(14.)).text_size(px(12.)).text_color(dimmed).child("No snapshots yet."))
+            d.child(div().p(px(14.)).text_size(px(12.)).text_color(dimmed).child("No snapshots yet. Save one before your next big change."))
           })
           .children(rows),
       )

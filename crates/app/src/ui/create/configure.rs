@@ -7,15 +7,18 @@ use vista_kit::jobs::Spec;
 use vista_kit::machine::{Account, Os};
 
 use super::{Create, Step};
-use crate::ui::glyph;
 use crate::ui::detail::row;
+use crate::ui::glyph;
 
 impl Create {
   fn submit(&mut self, cx: &mut Context<Self>) {
     let os = self.os();
     let username = self.username.read(cx).text();
     let password = self.password.read(cx).text();
-    let account = (matches!(os, Os::Macos | Os::Windows) && !username.trim().is_empty() && !password.is_empty()).then(|| Account {
+    let account = (matches!(os, Os::Macos | Os::Windows)
+      && !username.trim().is_empty()
+      && !password.is_empty())
+    .then(|| Account {
       fullname: username.trim().to_string(),
       username: username.trim().to_string(),
       password,
@@ -28,7 +31,11 @@ impl Create {
       file: self.file.as_ref().map(|f| f.to_string_lossy().to_string()),
       os: Some(os),
       cpus: self.cpus.read(cx).value_f64().map(|v| v as u32),
-      memory: self.memory.read(cx).value_f64().map(|v| (v * 1024.0) as u64),
+      memory: self
+        .memory
+        .read(cx)
+        .value_f64()
+        .map(|v| (v * 1024.0) as u64),
       disk: self.disk.read(cx).value_f64().map(|v| v as u64),
       account,
       sharedownloads: self.share,
@@ -47,14 +54,21 @@ impl Create {
     let dimmed = t.dimmed().hsla();
     let os = self.os();
     let (family, title, notes) = match (&self.entry, &self.file) {
-      (Some(entry), _) => (entry.family.to_string(), entry.title(), entry.notes.to_string()),
+      (Some(entry), _) => (
+        entry.family.to_string(),
+        entry.title(),
+        entry.notes.to_string(),
+      ),
       (None, Some(file)) => (
         match os {
           Os::Macos => "macos".into(),
           Os::Windows => "windows".into(),
           _ => "linux".into(),
         },
-        file.file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_default(),
+        file
+          .file_name()
+          .map(|f| f.to_string_lossy().to_string())
+          .unwrap_or_default(),
         file.to_string_lossy().to_string(),
       ),
       _ => ("linux".into(), String::new(), String::new()),
@@ -79,10 +93,12 @@ impl Create {
       let entity = entity.clone();
       Button::new("back", "Back")
         .variant(Variant::Default)
-        .on_click(move |_, _, cx| entity.update(cx, |this, cx| {
-          this.step = Step::Pick;
-          cx.notify();
-        }))
+        .on_click(move |_, _, cx| {
+          entity.update(cx, |this, cx| {
+            this.step = Step::Pick;
+            cx.notify();
+          })
+        })
     };
     let create = {
       let entity = entity.clone();
@@ -95,7 +111,9 @@ impl Create {
       .flex()
       .flex_col()
       .gap(px(14.))
-      .max_w(px(640.))
+      .w_full()
+      .max_w(px(760.))
+      .mx_auto()
       .child(
         div()
           .flex()
@@ -106,9 +124,11 @@ impl Create {
             div()
               .flex()
               .flex_col()
+              .flex_1()
+              .min_w(px(0.))
               .gap(px(2.))
-              .child(div().text_size(px(18.)).font_weight(gpui::FontWeight::SEMIBOLD).child(title))
-              .child(div().text_size(px(12.)).text_color(dimmed).child(notes)),
+              .child(div().text_size(px(24.)).font_weight(gpui::FontWeight::BOLD).overflow_hidden().whitespace_normal().line_clamp(1).text_ellipsis().child(title))
+              .child(div().text_size(px(12.)).text_color(dimmed).overflow_hidden().whitespace_normal().line_clamp(1).text_ellipsis().child(notes)),
           ),
       )
       .when(os == Os::Windows, |d| {
@@ -123,9 +143,9 @@ impl Create {
         div()
           .flex()
           .gap(px(12.))
-          .child(div().flex_1().child(self.cpus.clone()))
-          .child(div().flex_1().child(self.memory.clone()))
-          .child(div().flex_1().child(self.disk.clone())),
+          .child(div().flex_1().min_w(px(0.)).child(self.cpus.clone()))
+          .child(div().flex_1().min_w(px(0.)).child(self.memory.clone()))
+          .child(div().flex_1().min_w(px(0.)).child(self.disk.clone())),
       )
       .when(matches!(os, Os::Macos | Os::Windows), |d| {
         d.child(div().pt(px(6.)).text_size(px(13.)).font_weight(gpui::FontWeight::MEDIUM).child("First account"))
@@ -134,14 +154,12 @@ impl Create {
             div()
               .flex()
               .gap(px(12.))
-              .child(div().flex_1().child(self.username.clone()))
-              .child(div().flex_1().child(self.password.clone())),
+              .child(div().flex_1().min_w(px(0.)).child(self.username.clone()))
+              .child(div().flex_1().min_w(px(0.)).child(self.password.clone())),
           )
       })
       .child(
-        div()
-          .flex()
-          .flex_col()
+        crate::ui::layout::group(cx)
           .child(row("Share Downloads", "The Mac's Downloads folder appears inside the guest.", toggle("share", self.share, |c, v| c.share = v), cx))
           .when(os == Os::Linux, |d| {
             d.child(row("Rosetta", "Run x86-64 Linux programs.", toggle("rosetta", self.rosetta, |c, v| c.rosetta = v), cx))
@@ -151,6 +169,6 @@ impl Create {
           })
           .child(row("Start when ready", "Boot the installer as soon as the download finishes.", toggle("start", self.start, |c, v| c.start = v), cx)),
       )
-      .child(div().flex().gap(px(8.)).pt(px(8.)).child(back).child(create))
+      .child(div().flex().justify_between().gap(px(8.)).pt(px(16.)).child(back).child(create))
   }
 }

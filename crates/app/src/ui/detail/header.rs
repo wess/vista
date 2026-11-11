@@ -11,7 +11,12 @@ use crate::state::Machine;
 use crate::ui::glyph;
 
 impl Detail {
-  pub fn header(&mut self, machine: &Machine, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+  pub fn header(
+    &mut self,
+    machine: &Machine,
+    _window: &mut Window,
+    cx: &mut Context<Self>,
+  ) -> impl IntoElement {
     let t = theme(cx);
     let dimmed = t.dimmed().hsla();
     let state = machine.state();
@@ -36,10 +41,14 @@ impl Detail {
         })
     };
 
-    let mut actions = Group::new().gap(Size::Xs);
+    let mut actions = div().flex().flex_wrap().gap(px(8.));
     match state {
       State::Stopped | State::Suspended | State::Error if live.is_none() => {
-        let label = if state == State::Suspended { "Resume" } else { "Start" };
+        let label = if state == State::Suspended {
+          "Resume"
+        } else {
+          "Start"
+        };
         actions = actions.child(act(label, IconName::Play, Variant::Filled, None));
         let lib = lib.clone();
         let id = id.clone();
@@ -55,26 +64,66 @@ impl Detail {
       }
       State::Paused => {
         actions = actions
-          .child(act("Resume", IconName::Play, Variant::Filled, Some(Request::Resume)))
-          .child(act("Shut Down", IconName::Power, Variant::Default, Some(Request::Stop)));
+          .child(act(
+            "Resume",
+            IconName::Play,
+            Variant::Filled,
+            Some(Request::Resume),
+          ))
+          .child(act(
+            "Shut Down",
+            IconName::Power,
+            Variant::Default,
+            Some(Request::Stop),
+          ));
       }
       State::Error => {
-        actions = actions.child(act("Close", IconName::X, Variant::Default, Some(Request::Kill)));
+        actions = actions.child(act(
+          "Close",
+          IconName::X,
+          Variant::Default,
+          Some(Request::Kill),
+        ));
       }
       _ => {
         let visible = live.as_ref().map(|l| l.visible).unwrap_or(false);
         actions = actions.child(if visible {
-          act("Hide", IconName::EyeOff, Variant::Default, Some(Request::Hide))
+          act(
+            "Hide",
+            IconName::EyeOff,
+            Variant::Default,
+            Some(Request::Hide),
+          )
         } else {
-          act("Show", IconName::AppWindow, Variant::Filled, Some(Request::Show))
+          act(
+            "Show",
+            IconName::AppWindow,
+            Variant::Filled,
+            Some(Request::Show),
+          )
         });
         if state == State::Running {
           actions = actions
-            .child(act("Pause", IconName::Pause, Variant::Default, Some(Request::Pause)))
-            .child(act("Suspend", IconName::Moon, Variant::Default, Some(Request::Suspend)));
+            .child(act(
+              "Pause",
+              IconName::Pause,
+              Variant::Default,
+              Some(Request::Pause),
+            ))
+            .child(act(
+              "Suspend",
+              IconName::Moon,
+              Variant::Default,
+              Some(Request::Suspend),
+            ));
         }
         actions = actions
-          .child(act("Shut Down", IconName::Power, Variant::Default, Some(Request::Stop)))
+          .child(act(
+            "Shut Down",
+            IconName::Power,
+            Variant::Default,
+            Some(Request::Stop),
+          ))
           .child({
             let lib = lib.clone();
             let id = id.clone();
@@ -100,32 +149,51 @@ impl Detail {
 
     div()
       .flex()
-      .items_center()
-      .gap(px(14.))
-      .px(px(24.))
-      .pt(px(20.))
-      .pb(px(14.))
-      .child(glyph::badge(machine.family(), 46.))
+      .flex_col()
+      .flex_none()
+      .gap(px(20.))
+      .p(px(28.))
       .child(
         div()
           .flex()
-          .flex_col()
-          .flex_1()
-          .min_w(px(0.))
-          .gap(px(4.))
+          .items_center()
+          .gap(px(16.))
+          .child(glyph::badge(machine.family(), 56.))
           .child(
             div()
               .flex()
-              .items_center()
-              .gap(px(10.))
-              .child(div().text_size(px(19.)).font_weight(gpui::FontWeight::SEMIBOLD).child(machine.name().to_string()))
-              .child(Badge::new(state.label()).variant(Variant::Light).color(badge_color).size(Size::Sm)),
+              .flex_col()
+              .flex_1()
+              .min_w(px(0.))
+              .gap(px(4.))
+              .child(
+                div()
+                  .text_size(px(25.))
+                  .font_weight(gpui::FontWeight::BOLD)
+                  .overflow_hidden()
+                  .whitespace_normal()
+                  .line_clamp(1)
+                  .text_ellipsis()
+                  .child(machine.name().to_string()),
+              )
+              .child(
+                div()
+                  .text_size(px(12.))
+                  .text_color(dimmed)
+                  .overflow_hidden()
+                  .whitespace_normal()
+                  .line_clamp(1)
+                  .text_ellipsis()
+                  .child(format!("{} · {}", machine.title(), machine.summary())),
+              ),
           )
           .child(
-            div()
-              .text_size(px(12.))
-              .text_color(dimmed)
-              .child(format!("{} · {}", machine.title(), machine.summary())),
+            div().flex_none().child(
+              Badge::new(state.label())
+                .variant(Variant::Light)
+                .color(badge_color)
+                .size(Size::Sm),
+            ),
           ),
       )
       .child(actions)

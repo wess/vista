@@ -15,7 +15,10 @@ mod ui;
 use std::cell::RefCell;
 
 use gpui::prelude::*;
-use gpui::{point, px, size, App, Application, Bounds, TitlebarOptions, WindowBounds, WindowHandle, WindowOptions};
+use gpui::{
+  point, px, size, App, Application, Bounds, TitlebarOptions, WindowBounds, WindowHandle,
+  WindowOptions,
+};
 
 use crate::actions::{CloseWindow, Fullscreen, Minimize, Zoom};
 use crate::ui::root::Root;
@@ -41,7 +44,17 @@ pub fn open_main(cx: &mut App) {
       return;
     }
   }
-  let bounds = Bounds::centered(None, size(px(1180.), px(760.)), cx);
+  let dimensions = std::env::var("VISTA_SIZE")
+    .ok()
+    .and_then(|value| {
+      let (width, height) = value.split_once('x')?;
+      Some(size(
+        px(width.parse::<f32>().ok()?.max(920.)),
+        px(height.parse::<f32>().ok()?.max(600.)),
+      ))
+    })
+    .unwrap_or_else(|| size(px(1180.), px(760.)));
+  let bounds = Bounds::centered(None, dimensions, cx);
   let options = WindowOptions {
     window_bounds: Some(WindowBounds::Windowed(bounds)),
     window_min_size: Some(size(px(920.), px(600.))),
@@ -80,7 +93,9 @@ fn float(window: &gpui::Window) {
   if std::env::var_os("VISTA_FLOAT").is_none() {
     return;
   }
-  let Ok(handle) = HasWindowHandle::window_handle(window) else { return };
+  let Ok(handle) = HasWindowHandle::window_handle(window) else {
+    return;
+  };
   if let RawWindowHandle::AppKit(handle) = handle.as_raw() {
     let view = handle.ns_view.as_ptr() as *mut objc2::runtime::AnyObject;
     unsafe {
@@ -119,10 +134,14 @@ fn wire_window(window: &mut gpui::Window, cx: &mut App) {
 /// Machines marked "Start with Vista" come up in the background.
 fn autostart(cx: &mut App) {
   let library = state::library(cx);
-  let Some(store) = library.read(cx).store.clone() else { return };
+  let Some(store) = library.read(cx).store.clone() else {
+    return;
+  };
   runtime::spawn(async move {
     for entry in store.machines().await.unwrap_or_default() {
-      let Ok(bundle) = vista_kit::bundle::load(&entry.path()) else { continue };
+      let Ok(bundle) = vista_kit::bundle::load(&entry.path()) else {
+        continue;
+      };
       if bundle.config.autostart && vista_kit::ipc::status(&entry.id).await.is_none() {
         let _ = vista_kit::launch::start(&bundle.path, false);
       }

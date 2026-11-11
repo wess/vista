@@ -1,6 +1,7 @@
 //! One machine: its header and four tabs.
 
 mod confirm;
+pub use confirm::ask;
 mod hardware;
 
 pub use hardware::{chips, row};
@@ -52,7 +53,12 @@ pub struct Detail {
 }
 
 impl Detail {
-  pub fn new(id: String, overlays: Entity<OverlayHost>, _window: &mut Window, cx: &mut Context<Self>) -> Self {
+  pub fn new(
+    id: String,
+    overlays: Entity<OverlayHost>,
+    _window: &mut Window,
+    cx: &mut Context<Self>,
+  ) -> Self {
     let library = library(cx);
     cx.observe(&library, |_, _, cx| cx.notify()).detach();
     let config = library
@@ -60,13 +66,17 @@ impl Detail {
       .machine(&id)
       .and_then(|m| m.bundle.as_ref())
       .map(|b| b.config.clone());
-    let host_cpus = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(8) as f64;
+    let host_cpus = std::thread::available_parallelism()
+      .map(|n| n.get())
+      .unwrap_or(8) as f64;
     let (name, cpus, memory, disk) = match &config {
       Some(c) => (
         c.name.clone(),
         c.cpus as f64,
         (c.memory as f64 / 1024.0).round(),
-        c.system().map(|d| (d.size / (1024 * 1024 * 1024)) as f64).unwrap_or(64.0),
+        c.system()
+          .map(|d| (d.size / (1024 * 1024 * 1024)) as f64)
+          .unwrap_or(64.0),
       ),
       None => (String::new(), 2.0, 4.0, 64.0),
     };
@@ -82,9 +92,30 @@ impl Detail {
       },
       draft: config,
       name: cx.new(|cx| TextInput::new(cx).value(&name).label("Name")),
-      cpus: cx.new(|cx| NumberInput::new(cx).value(cpus).min(1.0).max(host_cpus).step(1.0).label("Processors")),
-      memory: cx.new(|cx| NumberInput::new(cx).value(memory).min(1.0).max(1024.0).step(1.0).label("Memory (GB)")),
-      disk: cx.new(|cx| NumberInput::new(cx).value(disk).min(disk).max(8192.0).step(8.0).label("Disk (GB)")),
+      cpus: cx.new(|cx| {
+        NumberInput::new(cx)
+          .value(cpus)
+          .min(1.0)
+          .max(host_cpus)
+          .step(1.0)
+          .label("Processors")
+      }),
+      memory: cx.new(|cx| {
+        NumberInput::new(cx)
+          .value(memory)
+          .min(1.0)
+          .max(1024.0)
+          .step(1.0)
+          .label("Memory (GB)")
+      }),
+      disk: cx.new(|cx| {
+        NumberInput::new(cx)
+          .value(disk)
+          .min(disk)
+          .max(8192.0)
+          .step(8.0)
+          .label("Disk (GB)")
+      }),
       snapshot: cx.new(|cx| TextInput::new(cx).placeholder("Snapshot name")),
     }
   }
@@ -125,24 +156,34 @@ impl Detail {
     let dimmed = t.dimmed().hsla();
     let active_bg = t.surface_hover().hsla();
     let current = self.tab;
-    div().flex().gap(px(4.)).children(Tab::ALL.iter().map(|tab| {
-      let tab = *tab;
-      let active = tab == current;
-      div()
-        .id(SharedString::from(format!("tab-{}", tab.label())))
-        .px(px(12.))
-        .py(px(5.))
-        .rounded(px(7.))
-        .text_size(px(13.))
-        .cursor_pointer()
-        .when(active, |d| d.bg(active_bg).text_color(text).font_weight(gpui::FontWeight::MEDIUM))
-        .when(!active, |d| d.text_color(dimmed).hover(move |s| s.text_color(text)))
-        .on_click(cx.listener(move |this, _, _, cx| {
-          this.tab = tab;
-          cx.notify();
-        }))
-        .child(tab.label())
-    }))
+    div()
+      .flex()
+      .flex_wrap()
+      .gap(px(4.))
+      .children(Tab::ALL.iter().map(|tab| {
+        let tab = *tab;
+        let active = tab == current;
+        div()
+          .id(SharedString::from(format!("tab-{}", tab.label())))
+          .px(px(12.))
+          .py(px(5.))
+          .rounded(px(7.))
+          .text_size(px(13.))
+          .cursor_pointer()
+          .when(active, |d| {
+            d.bg(active_bg)
+              .text_color(text)
+              .font_weight(gpui::FontWeight::MEDIUM)
+          })
+          .when(!active, |d| {
+            d.text_color(dimmed).hover(move |s| s.text_color(text))
+          })
+          .on_click(cx.listener(move |this, _, _, cx| {
+            this.tab = tab;
+            cx.notify();
+          }))
+          .child(tab.label())
+      }))
   }
 }
 
@@ -162,10 +203,12 @@ impl Render for Detail {
       .flex()
       .flex_col()
       .size_full()
+      .min_h(px(0.))
       .child(self.header(&machine, window, cx))
       .child(
         div()
-          .px(px(24.))
+          .flex_none()
+          .px(px(28.))
           .pb(px(10.))
           .border_b_1()
           .border_color(border)
@@ -173,11 +216,22 @@ impl Render for Detail {
       )
       .child(
         div()
-          .id("detail-body")
+          .id(SharedString::from(format!("detail-{}", self.tab.label())))
           .flex_1()
+          .w_full()
+          .min_w(px(0.))
+          .min_h(px(0.))
           .overflow_y_scroll()
-          .p(px(24.))
-          .child(body),
+          .p(px(28.))
+          .child(
+            div()
+              .flex()
+              .flex_col()
+              .w_full()
+              .max_w(px(900.))
+              .mx_auto()
+              .child(body),
+          ),
       )
       .into_any_element()
   }

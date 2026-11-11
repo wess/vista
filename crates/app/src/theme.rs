@@ -19,7 +19,27 @@ fn base(dark: bool) -> Theme {
   theme
     .palette
     .set_shades(ColorName::Dark, Shades(GRAPHITE.map(Color::hex)));
-  theme.primary_color = ColorName::Indigo;
+  theme.primary_color = ColorName::Blue;
+  theme = if dark {
+    theme
+      .with_body(color!("#1C1C1E"))
+      .with_surface(color!("#272729"))
+      .with_surface_hover(color!("#333336"))
+      .with_border(color!("#3A3A3C"))
+      .with_text(color!("#F5F5F7"))
+      .with_dimmed(color!("#ABABB0"))
+      .with_primary(color!("#0A84FF"))
+  } else {
+    theme
+      .with_body(color!("#F5F5F7"))
+      .with_surface(color!("#FFFFFF"))
+      .with_surface_hover(color!("#EAEAEE"))
+      .with_border(color!("#DEDEE3"))
+      .with_text(color!("#1D1D1F"))
+      .with_dimmed(color!("#6E6E73"))
+      .with_primary(color!("#007AFF"))
+  };
+  theme.line_height = 1.4;
   theme.default_radius = Size::Md;
   theme.font_family = ".SystemUIFont".into();
   theme

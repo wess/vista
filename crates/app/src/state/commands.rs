@@ -178,7 +178,11 @@ impl Library {
         if let Some(store) = store {
           store.forget(machine.id()).await.map_err(|e| e.to_string())?;
         }
-        Ok(Some(format!("Moved {} to the Trash.", machine.name())))
+        Ok(Some(if machine.bundle.is_some() {
+          format!("Moved {} to the Trash.", machine.name())
+        } else {
+          format!("Removed {} from the library.", machine.name())
+        }))
       },
       cx,
     );

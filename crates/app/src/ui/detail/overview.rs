@@ -21,10 +21,21 @@ fn stat(label: &str, value: String, cx: &App) -> impl IntoElement {
     .bg(t.surface().hsla())
     .border_1()
     .border_color(t.border().hsla())
-    .min_w(px(150.))
+    .min_w(px(140.))
+    .min_h(px(84.))
     .flex_1()
-    .child(div().text_size(px(11.)).text_color(t.dimmed().hsla()).child(label.to_uppercase()))
-    .child(div().text_size(px(15.)).font_weight(gpui::FontWeight::MEDIUM).child(value))
+    .child(
+      div()
+        .text_size(px(11.))
+        .text_color(t.dimmed().hsla())
+        .child(label.to_string()),
+    )
+    .child(
+      div()
+        .text_size(px(17.))
+        .font_weight(gpui::FontWeight::MEDIUM)
+        .child(value),
+    )
 }
 
 impl Detail {
@@ -34,24 +45,33 @@ impl Detail {
     let state = machine.state();
     let frame = div()
       .w_full()
-      .h(px(300.))
+      .h(px(280.))
+      .flex_none()
       .rounded(px(12.))
       .overflow_hidden()
-      .bg(color!("#0B0C0E"))
+      .bg(color!("#111114"))
       .border_1()
       .border_color(t.border().hsla())
       .flex()
       .items_center()
       .justify_center();
     match screen {
-      Some(image) if machine.is_running() => frame.child(img(image).size_full().object_fit(ObjectFit::Contain)),
+      Some(image) if machine.is_running() => {
+        frame.child(img(image).size_full().object_fit(ObjectFit::Contain))
+      }
       _ => {
         let message = match (state, &machine.live) {
-          (State::Installing, Some(live)) => format!("Installing macOS — {:.0}%", live.progress.unwrap_or(0.0) * 100.0),
+          (State::Installing, Some(live)) => format!(
+            "Installing macOS — {:.0}%",
+            live.progress.unwrap_or(0.0) * 100.0
+          ),
           (State::Running, Some(live)) if !live.visible => "Running in the background".into(),
           (State::Running, _) => "Starting…".into(),
           (State::Suspended, _) => "Suspended — resumes where it left off".into(),
-          (State::Error, Some(live)) => live.message.clone().unwrap_or_else(|| "Stopped with an error".into()),
+          (State::Error, Some(live)) => live
+            .message
+            .clone()
+            .unwrap_or_else(|| "Stopped with an error".into()),
           _ => "Powered off".into(),
         };
         frame.child(
@@ -59,11 +79,23 @@ impl Detail {
             .flex()
             .flex_col()
             .items_center()
+            .p(px(24.))
             .gap(px(12.))
             .child(glyph::badge(machine.family(), 56.))
-            .child(div().text_size(px(13.)).text_color(color!("#A6A7AB")).child(message))
+            .child(
+              div()
+                .text_size(px(13.))
+                .text_center()
+                .text_color(color!("#A6A7AB"))
+                .child(message),
+            )
             .when(state == State::Installing, |d| {
-              let value = machine.live.as_ref().and_then(|l| l.progress).unwrap_or(0.0) as f32 * 100.0;
+              let value = machine
+                .live
+                .as_ref()
+                .and_then(|l| l.progress)
+                .unwrap_or(0.0) as f32
+                * 100.0;
               d.child(div().w(px(260.)).child(Progress::new(value)))
             }),
         )
@@ -71,19 +103,32 @@ impl Detail {
     }
   }
 
-  pub fn overview(&mut self, machine: &Machine, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+  pub fn overview(
+    &mut self,
+    machine: &Machine,
+    window: &mut Window,
+    cx: &mut Context<Self>,
+  ) -> impl IntoElement {
     let t = theme(cx);
     let dimmed = t.dimmed().hsla();
     let config = machine.bundle.as_ref().map(|b| b.config.clone());
     let live = machine.live.clone();
     let ip = live.as_ref().and_then(|l| l.ip.clone());
-    let disk_size = config.as_ref().and_then(|c| c.system()).map(|d| d.size).unwrap_or(0);
+    let disk_size = config
+      .as_ref()
+      .and_then(|c| c.system())
+      .map(|d| d.size)
+      .unwrap_or(0);
 
-    let mut stats = div().flex().flex_wrap().gap(px(12.));
+    let mut stats = div().flex().flex_none().flex_wrap().gap(px(10.));
     stats = stats
       .child(stat(
         "Uptime",
-        live.as_ref().filter(|l| l.uptime > 0).map(|l| format::duration(l.uptime)).unwrap_or_else(|| "—".into()),
+        live
+          .as_ref()
+          .filter(|l| l.uptime > 0)
+          .map(|l| format::duration(l.uptime))
+          .unwrap_or_else(|| "—".into()),
         cx,
       ))
       .child(stat(
@@ -96,13 +141,31 @@ impl Detail {
         },
         cx,
       ))
-      .child(stat("Disk", format!("{} of {}", format::bytes(machine.usage), format::gib(disk_size)), cx))
       .child(stat(
-        "Memory",
-        config.as_ref().map(|c| format!("{} GB", (c.memory as f64 / 1024.0).round())).unwrap_or_default(),
+        "Disk",
+        format!(
+          "{} of {}",
+          format::bytes(machine.usage),
+          format::gib(disk_size)
+        ),
         cx,
       ))
-      .child(stat("Processors", config.as_ref().map(|c| c.cpus.to_string()).unwrap_or_default(), cx));
+      .child(stat(
+        "Memory",
+        config
+          .as_ref()
+          .map(|c| format!("{} GB", (c.memory as f64 / 1024.0).round()))
+          .unwrap_or_default(),
+        cx,
+      ))
+      .child(stat(
+        "Processors",
+        config
+          .as_ref()
+          .map(|c| c.cpus.to_string())
+          .unwrap_or_default(),
+        cx,
+      ));
 
     let id = machine.id().to_string();
     let lib = self.library.clone();
@@ -129,12 +192,20 @@ impl Detail {
           .child(
             div()
               .flex()
+              .flex_1()
+              .min_w(px(0.))
               .items_center()
               .gap(px(10.))
               .child(Icon::new(IconName::Disc3).size(Size::Sm))
-              .child(div().text_size(px(12.)).child(format!(
+              .child(
+                div()
+                  .flex_1()
+                  .min_w(px(0.))
+                  .text_size(px(12.))
+                  .child(format!(
                 "{file} is attached. Vista ejects it when the guest powers off after installing."
-              ))),
+              )),
+              ),
           )
           .child(
             Button::new("eject", "Eject Now")
@@ -143,7 +214,11 @@ impl Detail {
               .on_click(move |_, _, cx| {
                 let id = id.clone();
                 lib.update(cx, |l, cx| {
-                  if let Some(mut config) = l.machine(&id).and_then(|m| m.bundle.as_ref()).map(|b| b.config.clone()) {
+                  if let Some(mut config) = l
+                    .machine(&id)
+                    .and_then(|m| m.bundle.as_ref())
+                    .map(|b| b.config.clone())
+                  {
                     config.installer = None;
                     l.save_config(config, cx);
                   }
@@ -166,7 +241,9 @@ impl Detail {
               .label("Copy address")
               .size(Size::Sm)
               .variant(Variant::Subtle)
-              .on_click(move |_, _, cx| cx.write_to_clipboard(ClipboardItem::new_string(ip.clone()))),
+              .on_click(move |_, _, cx| {
+                cx.write_to_clipboard(ClipboardItem::new_string(ip.clone()))
+              }),
           ),
       );
     }
@@ -180,8 +257,10 @@ impl Detail {
       let lib_delete = lib.clone();
       let id_clone = id.clone();
       let id_delete = id.clone();
-      Group::new()
-        .gap(Size::Xs)
+      div()
+        .flex()
+        .flex_wrap()
+        .gap(px(8.))
         .child(
           Button::new("clone", "Clone")
             .size(Size::Sm)
@@ -231,6 +310,8 @@ impl Detail {
     div()
       .flex()
       .flex_col()
+      .w_full()
+      .min_w(px(0.))
       .gap(px(18.))
       .child(self.preview(machine, cx))
       .child(stats)

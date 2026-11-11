@@ -10,12 +10,13 @@ use super::detail::Detail;
 use super::settings::SettingsPage;
 use crate::state::{library, Library, Notice, Page};
 
-pub const SIDEBAR: f32 = 248.0;
-pub const TOOLBAR: f32 = 48.0;
+pub const SIDEBAR: f32 = 232.0;
+pub const TOOLBAR: f32 = 56.0;
 
 pub struct Root {
   library: Entity<Library>,
   overlays: Entity<OverlayHost>,
+  menu: Option<Entity<ContextMenu>>,
   detail: Option<(String, Entity<Detail>)>,
   create: Option<Entity<Create>>,
   settings: Option<Entity<SettingsPage>>,
@@ -32,13 +33,16 @@ impl Root {
       let notice = notice.clone();
       host.update(cx, |host, cx| match notice {
         Notice::Info(message) => host.toast(message, cx),
-        Notice::Failed(message) => host.toast_titled("Something went wrong", message, ColorName::Red, cx),
+        Notice::Failed(message) => {
+          host.toast_titled("Something went wrong", message, ColorName::Red, cx)
+        }
       });
     })
     .detach();
     Root {
       library,
       overlays,
+      menu: None,
       detail: None,
       create: None,
       settings: None,
@@ -46,7 +50,12 @@ impl Root {
     }
   }
 
-  fn content(&mut self, page: &Page, window: &mut Window, cx: &mut Context<Self>) -> gpui::AnyElement {
+  fn content(
+    &mut self,
+    page: &Page,
+    window: &mut Window,
+    cx: &mut Context<Self>,
+  ) -> gpui::AnyElement {
     match page {
       Page::Machine(id) => {
         let fresh = !matches!(&self.detail, Some((current, _)) if current == id);
@@ -57,7 +66,11 @@ impl Root {
           self.detail = Some((id, detail));
         }
         self.create = None;
-        self.detail.as_ref().map(|(_, d)| d.clone().into_any_element()).unwrap_or_else(|| div().into_any_element())
+        self
+          .detail
+          .as_ref()
+          .map(|(_, d)| d.clone().into_any_element())
+          .unwrap_or_else(|| div().into_any_element())
       }
       Page::Create => {
         let create = self
@@ -92,14 +105,39 @@ impl Render for Root {
     let dimmed = t.dimmed().hsla();
     let page = self.library.read(cx).page.clone();
     let title: String = match &page {
-      Page::Machine(id) => self.library.read(cx).machine(id).map(|m| m.name().to_string()).unwrap_or_default(),
+      Page::Machine(id) => self
+        .library
+        .read(cx)
+        .machine(id)
+        .map(|m| m.name().to_string())
+        .unwrap_or_default(),
       Page::Create => "New Machine".into(),
       Page::Settings => "Settings".into(),
       Page::Welcome => String::new(),
     };
     let content = self.content(&page, window, cx);
     let lib = self.library.clone();
-    let lib2 = self.library.clone();
+    let creating = matches!(page, Page::Create);
+
+    let root = cx.entity().downgrade();
+    let on_menu =
+      move |id: String, event: &gpui::MouseDownEvent, window: &mut Window, cx: &mut gpui::App| {
+        let _ = root.update(cx, |root, cx| {
+          if let Some(menu) = &root.menu {
+            menu.update(cx, |menu, cx| menu.close(window, cx));
+          }
+          root.library.update(cx, |library, cx| {
+            library.select(Page::Machine(id.clone()), cx)
+          });
+          let Some(machine) = root.library.read(cx).machine(&id).cloned() else {
+            return;
+          };
+          let menu = super::menu::machine(&machine, &root.library, &root.overlays, cx);
+          menu.update(cx, |menu, cx| menu.show(event.position, window, cx));
+          root.menu = Some(menu);
+          cx.notify();
+        });
+      };
 
     let toolbar = div()
       .id("toolbar")
@@ -122,6 +160,7 @@ impl Render for Root {
           .flex()
           .items_center()
           .w(px(SIDEBAR))
+          .flex_none()
           .h_full()
           .pl(px(84.))
           .bg(side)
@@ -136,26 +175,60 @@ impl Render for Root {
         div()
           .flex()
           .flex_1()
+          .min_w(px(0.))
           .items_center()
           .justify_between()
-          .px(px(16.))
+          .px(px(24.))
           .bg(body)
-          .child(div().text_color(text).text_size(px(14.)).font_weight(gpui::FontWeight::SEMIBOLD).child(title))
           .child(
-            Group::new()
-              .gap(Size::Xs)
+            div()
+              .flex_1()
+              .min_w(px(0.))
+              .overflow_hidden()
+              .whitespace_normal()
+              .line_clamp(1)
+              .text_ellipsis()
+              .text_color(text)
+              .text_size(px(13.))
+              .font_weight(gpui::FontWeight::SEMIBOLD)
+              .child(title),
+          )
+          .child(
+            div()
+              .id("toolbar-actions")
+              .flex()
+              .flex_none()
+              .ml(px(16.))
+              .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
               .child(
-                Button::new("new", "New Machine")
+                Button::new("new", if creating { "Cancel" } else { "New Machine" })
                   .size(Size::Sm)
-                  .variant(Variant::Light)
-                  .left_section(Icon::new(IconName::Plus).size(Size::Sm))
-                  .on_click(move |_, _, cx| lib.update(cx, |l, cx| l.select(Page::Create, cx))),
-              )
-              .child(
-                ActionIcon::new("settings", IconName::Settings)
-                  .label("Settings")
-                  .variant(Variant::Subtle)
-                  .on_click(move |_, _, cx| lib2.update(cx, |l, cx| l.select(Page::Settings, cx))),
+                  .variant(if creating {
+                    Variant::Default
+                  } else {
+                    Variant::Light
+                  })
+                  .left_section(
+                    Icon::new(if creating {
+                      IconName::X
+                    } else {
+                      IconName::Plus
+                    })
+                    .size(Size::Sm),
+                  )
+                  .on_click(move |_, _, cx| {
+                    lib.update(cx, |l, cx| {
+                      let destination = if creating {
+                        l.machines
+                          .first()
+                          .map(|m| Page::Machine(m.id().to_string()))
+                          .unwrap_or(Page::Welcome)
+                      } else {
+                        Page::Create
+                      };
+                      l.select(destination, cx);
+                    })
+                  }),
               ),
           ),
       );
@@ -169,6 +242,8 @@ impl Render for Root {
       .bg(body)
       .text_color(text)
       .font_family(".SystemUIFont")
+      .text_size(px(13.))
+      .line_height(gpui::relative(1.4))
       .child(toolbar)
       .child(
         div()
@@ -176,9 +251,25 @@ impl Render for Root {
           .flex_row()
           .flex_1()
           .min_h(px(0.))
-          .child(super::sidebar::render(&self.library, cx))
-          .child(div().flex().flex_col().flex_1().min_w(px(0.)).h_full().child(content)),
+          .child(super::sidebar::render(&self.library, on_menu, cx))
+          .child(
+            div()
+              .flex()
+              .flex_col()
+              .flex_1()
+              .min_w(px(0.))
+              .min_h(px(0.))
+              .h_full()
+              .overflow_hidden()
+              .child(content),
+          ),
       )
-      .child(self.overlays.clone())
+      .child(
+        div()
+          .absolute()
+          .inset_0()
+          .child(self.overlays.clone())
+          .children(self.menu.clone()),
+      )
   }
 }

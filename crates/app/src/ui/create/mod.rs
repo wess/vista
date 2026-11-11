@@ -43,7 +43,9 @@ impl Create {
   pub fn new(_window: &mut Window, cx: &mut Context<Self>) -> Self {
     let library = library(cx);
     let share = library.read(cx).settings.sharedownloads;
-    let host = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(8) as f64;
+    let host = std::thread::available_parallelism()
+      .map(|n| n.get())
+      .unwrap_or(8) as f64;
     let user = std::env::var("USER").unwrap_or_default();
     Create {
       library,
@@ -52,9 +54,30 @@ impl Create {
       entry: None,
       file: None,
       name: cx.new(|cx| TextInput::new(cx).label("Name").placeholder("My Machine")),
-      cpus: cx.new(|cx| NumberInput::new(cx).label("Processors").min(1.0).max(host).step(1.0).value(4.0)),
-      memory: cx.new(|cx| NumberInput::new(cx).label("Memory (GB)").min(1.0).max(1024.0).step(1.0).value(8.0)),
-      disk: cx.new(|cx| NumberInput::new(cx).label("Disk (GB)").min(8.0).max(8192.0).step(8.0).value(64.0)),
+      cpus: cx.new(|cx| {
+        NumberInput::new(cx)
+          .label("Processors")
+          .min(1.0)
+          .max(host)
+          .step(1.0)
+          .value(4.0)
+      }),
+      memory: cx.new(|cx| {
+        NumberInput::new(cx)
+          .label("Memory (GB)")
+          .min(1.0)
+          .max(1024.0)
+          .step(1.0)
+          .value(8.0)
+      }),
+      disk: cx.new(|cx| {
+        NumberInput::new(cx)
+          .label("Disk (GB)")
+          .min(8.0)
+          .max(8192.0)
+          .step(8.0)
+          .value(64.0)
+      }),
       username: cx.new(|cx| TextInput::new(cx).label("Account name").value(&user)),
       password: cx.new(|cx| TextInput::new(cx).label("Password").password(true)),
       share,
@@ -78,7 +101,9 @@ impl Create {
     self.file = file;
     let os = self.os();
     let (cpus, memory, disk) = os.defaults();
-    let host = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(8) as u32;
+    let host = std::thread::available_parallelism()
+      .map(|n| n.get())
+      .unwrap_or(8) as u32;
     let name = match (&self.entry, &self.file) {
       (Some(entry), _) => entry.title(),
       (None, Some(file)) => file
@@ -88,8 +113,12 @@ impl Create {
       _ => "Machine".into(),
     };
     self.name.update(cx, |input, cx| input.set_text(&name, cx));
-    self.cpus.update(cx, |input, cx| input.set_value(cpus.min(host.max(1)) as f64, cx));
-    self.memory.update(cx, |input, cx| input.set_value((memory / 1024) as f64, cx));
+    self.cpus.update(cx, |input, cx| {
+      input.set_value(cpus.min(host.max(1)) as f64, cx)
+    });
+    self
+      .memory
+      .update(cx, |input, cx| input.set_value((memory / 1024) as f64, cx));
     self.disk.update(cx, |input, cx| {
       input.set_min(os.minimum_disk() as f64, cx);
       input.set_value(disk as f64, cx);
@@ -107,9 +136,20 @@ impl Render for Create {
       Step::Configure => self.configure(window, cx).into_any_element(),
     };
     div()
-      .id("create")
+      .id(match self.step {
+        Step::Pick => "create-pick",
+        Step::Configure => "create-configure",
+      })
       .size_full()
+      .min_h(px(0.))
       .overflow_y_scroll()
-      .child(div().p(px(28.)).max_w(px(980.)).child(body))
+      .child(
+        div()
+          .w_full()
+          .max_w(px(1080.))
+          .mx_auto()
+          .p(px(32.))
+          .child(body),
+      )
   }
 }

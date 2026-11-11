@@ -40,13 +40,18 @@ impl Panel {
     let lib = self.library.clone();
     let detail = match (&machine.live, state) {
       (Some(live), State::Running) => {
-        let mut parts = vec![format!("Running · {}", crate::ui::format::duration(live.uptime))];
+        let mut parts = vec![format!(
+          "Running · {}",
+          crate::ui::format::duration(live.uptime)
+        )];
         if let Some(ip) = &live.ip {
           parts.push(ip.clone());
         }
         parts.join(" · ")
       }
-      (Some(live), State::Installing) => format!("Installing {:.0}%", live.progress.unwrap_or(0.0) * 100.0),
+      (Some(live), State::Installing) => {
+        format!("Installing {:.0}%", live.progress.unwrap_or(0.0) * 100.0)
+      }
       _ => format!("{} · {}", state.label(), machine.summary()),
     };
     let running = machine.is_running();
@@ -93,6 +98,7 @@ impl Panel {
     div()
       .id(SharedString::from(format!("panel-{id}")))
       .flex()
+      .flex_none()
       .items_center()
       .gap(px(10.))
       .px(px(10.))
@@ -108,7 +114,16 @@ impl Panel {
           .flex_col()
           .flex_1()
           .min_w(px(0.))
-          .child(div().text_size(px(13.)).font_weight(gpui::FontWeight::MEDIUM).overflow_hidden().whitespace_nowrap().text_ellipsis().child(machine.name().to_string()))
+          .child(
+            div()
+              .text_size(px(13.))
+              .font_weight(gpui::FontWeight::MEDIUM)
+              .overflow_hidden()
+              .whitespace_normal()
+              .line_clamp(1)
+              .text_ellipsis()
+              .child(machine.name().to_string()),
+          )
           .child(
             div()
               .flex()
@@ -117,12 +132,27 @@ impl Panel {
               .text_size(px(11.))
               .text_color(dimmed)
               .overflow_hidden()
-              .whitespace_nowrap()
+              .whitespace_normal()
+              .line_clamp(1)
               .child(glyph::dot(state))
-              .child(detail),
+              .child(
+                div()
+                  .min_w(px(0.))
+                  .overflow_hidden()
+                  .whitespace_normal()
+                  .line_clamp(1)
+                  .text_ellipsis()
+                  .child(detail),
+              ),
           ),
       )
-      .child(action)
+      .child(
+        div()
+          .id(SharedString::from(format!("panel-action-{id}")))
+          .flex_none()
+          .on_click(|_, _, cx| cx.stop_propagation())
+          .child(action),
+      )
   }
 }
 
@@ -135,7 +165,10 @@ impl Render for Panel {
     let text = t.text().hsla();
     let machines = self.library.read(cx).machines.clone();
     let running = machines.iter().filter(|m| m.is_running()).count();
-    let rows: Vec<gpui::AnyElement> = machines.iter().map(|m| self.row(m, cx).into_any_element()).collect();
+    let rows: Vec<gpui::AnyElement> = machines
+      .iter()
+      .map(|m| self.row(m, cx).into_any_element())
+      .collect();
     let lib = self.library.clone();
     div()
       .size_full()
@@ -151,17 +184,28 @@ impl Render for Panel {
       .child(
         div()
           .flex()
+          .flex_none()
           .items_center()
           .justify_between()
           .px(px(14.))
           .pt(px(12.))
           .pb(px(8.))
-          .child(div().text_size(px(13.)).font_weight(gpui::FontWeight::SEMIBOLD).child("Vista"))
-          .child(div().text_size(px(12.)).text_color(dimmed).child(if running == 0 {
-            "Nothing running".to_string()
-          } else {
-            format!("{running} running")
-          })),
+          .child(
+            div()
+              .text_size(px(13.))
+              .font_weight(gpui::FontWeight::SEMIBOLD)
+              .child("Vista"),
+          )
+          .child(
+            div()
+              .text_size(px(12.))
+              .text_color(dimmed)
+              .child(if running == 0 {
+                "Nothing running".to_string()
+              } else {
+                format!("{running} running")
+              }),
+          ),
       )
       .child(
         div()
@@ -169,16 +213,24 @@ impl Render for Panel {
           .flex()
           .flex_col()
           .flex_1()
+          .min_h(px(0.))
           .px(px(4.))
           .overflow_y_scroll()
           .when(rows.is_empty(), |d| {
-            d.child(div().p(px(12.)).text_size(px(12.)).text_color(dimmed).child("No machines yet."))
+            d.child(
+              div()
+                .p(px(12.))
+                .text_size(px(12.))
+                .text_color(dimmed)
+                .child("No machines yet."),
+            )
           })
           .children(rows),
       )
       .child(
         div()
           .flex()
+          .flex_none()
           .items_center()
           .justify_between()
           .px(px(10.))
@@ -188,19 +240,34 @@ impl Render for Panel {
           .child(
             Group::new()
               .gap(Size::Xs)
-              .child(Button::new("panel-open", "Open Vista").size(Size::Xs).variant(Variant::Subtle).on_click(|_, window, cx| {
-                super::closed();
-                window.remove_window();
-                crate::open_main(cx);
-              }))
-              .child(Button::new("panel-new", "New Machine").size(Size::Xs).variant(Variant::Subtle).on_click(move |_, window, cx| {
-                super::closed();
-                window.remove_window();
-                lib.update(cx, |l, cx| l.select(Page::Create, cx));
-                crate::open_main(cx);
-              })),
+              .child(
+                Button::new("panel-open", "Open Vista")
+                  .size(Size::Xs)
+                  .variant(Variant::Subtle)
+                  .on_click(|_, window, cx| {
+                    super::closed();
+                    window.remove_window();
+                    crate::open_main(cx);
+                  }),
+              )
+              .child(
+                Button::new("panel-new", "New Machine")
+                  .size(Size::Xs)
+                  .variant(Variant::Subtle)
+                  .on_click(move |_, window, cx| {
+                    super::closed();
+                    window.remove_window();
+                    lib.update(cx, |l, cx| l.select(Page::Create, cx));
+                    crate::open_main(cx);
+                  }),
+              ),
           )
-          .child(Button::new("panel-quit", "Quit").size(Size::Xs).variant(Variant::Subtle).on_click(|_, _, cx| cx.quit())),
+          .child(
+            Button::new("panel-quit", "Quit")
+              .size(Size::Xs)
+              .variant(Variant::Subtle)
+              .on_click(|_, _, cx| cx.quit()),
+          ),
       )
   }
 }

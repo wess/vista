@@ -2,7 +2,7 @@
 
 ## Making a machine
 
-Choose **New Machine** — in the toolbar, at the bottom of the sidebar, from
+Choose **New Machine** — in the toolbar, from
 the menu bar panel, or with ⌘N.
 
 ### 1. Choose a system
@@ -98,7 +98,12 @@ See [Windows](windows.md).
 
 ## The machine page
 
-Select a machine in the sidebar.
+Select a machine in the sidebar. Right-click (or Control-click) a machine
+for its context menu: start or resume, show or hide its window, pause,
+suspend, shut down, take a snapshot, clone, reveal in Finder, or delete.
+Only actions available in the machine’s current state appear. Force stop
+and deletion ask for confirmation; a missing machine can be removed from
+the library.
 
 The header shows its system, hardware and state, and the buttons that make
 sense right now:

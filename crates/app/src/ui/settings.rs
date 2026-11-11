@@ -23,9 +23,18 @@ pub fn mcp_path() -> String {
     .unwrap_or_else(|| "vistamcp".into())
 }
 
-fn chips(options: &[(&str, bool)], on_pick: impl Fn(usize, &mut App) + 'static, cx: &App) -> impl IntoElement {
+fn chips(
+  options: &[(&str, bool)],
+  on_pick: impl Fn(usize, &mut App) + 'static,
+  cx: &App,
+) -> impl IntoElement {
   let options: Vec<(String, bool)> = options.iter().map(|(l, s)| (l.to_string(), *s)).collect();
-  crate::ui::detail::chips("settings-chips", options, move |i, _, cx| on_pick(i, cx), cx)
+  crate::ui::detail::chips(
+    "settings-chips",
+    options,
+    move |i, _, cx| on_pick(i, cx),
+    cx,
+  )
 }
 
 impl SettingsPage {
@@ -47,16 +56,6 @@ impl SettingsPage {
   }
 }
 
-fn heading(title: &str, cx: &App) -> impl IntoElement {
-  div()
-    .pt(px(24.))
-    .pb(px(4.))
-    .text_size(px(12.))
-    .font_weight(gpui::FontWeight::SEMIBOLD)
-    .text_color(theme(cx).dimmed().hsla())
-    .child(title.to_uppercase())
-}
-
 impl Render for SettingsPage {
   fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
     let t = theme(cx);
@@ -67,7 +66,10 @@ impl Render for SettingsPage {
     let entity = cx.entity();
     let mcp = mcp_path();
     let command = mcp.clone();
-    let json = format!("{{\n  \"mcpServers\": {{\n    \"vista\": {{ \"command\": \"{mcp}\" }}\n  }}\n}}");
+    let json = serde_json::to_string_pretty(&serde_json::json!({
+      "mcpServers": { "vista": { "command": mcp } }
+    }))
+    .unwrap_or_default();
 
     let set = |change: fn(&mut Settings, bool), value: bool| {
       let entity = entity.clone();
@@ -99,25 +101,28 @@ impl Render for SettingsPage {
 
     let location = {
       let entity = entity.clone();
-      Button::new("location", "Change…").size(Size::Sm).variant(Variant::Default).on_click(move |_, _, cx| {
-        let picked = cx.prompt_for_paths(PathPromptOptions {
-          files: false,
-          directories: true,
-          multiple: false,
-          prompt: Some("Use".into()),
-        });
-        let entity = entity.clone();
-        cx.spawn(async move |cx| {
-          if let Ok(Ok(Some(paths))) = picked.await {
-            if let Some(path) = paths.into_iter().next() {
-              let _ = entity.update(cx, |this, cx| {
-                this.update(cx, |s| s.location = path.to_string_lossy().to_string());
-              });
+      Button::new("location", "Change…")
+        .size(Size::Sm)
+        .variant(Variant::Default)
+        .on_click(move |_, _, cx| {
+          let picked = cx.prompt_for_paths(PathPromptOptions {
+            files: false,
+            directories: true,
+            multiple: false,
+            prompt: Some("Use".into()),
+          });
+          let entity = entity.clone();
+          cx.spawn(async move |cx| {
+            if let Ok(Ok(Some(paths))) = picked.await {
+              if let Some(path) = paths.into_iter().next() {
+                let _ = entity.update(cx, |this, cx| {
+                  this.update(cx, |s| s.location = path.to_string_lossy().to_string());
+                });
+              }
             }
-          }
+          })
+          .detach();
         })
-        .detach();
-      })
     };
 
     let clear = {
@@ -163,84 +168,154 @@ impl Render for SettingsPage {
         .left_section(Icon::new(IconName::Copy).size(Size::Sm))
         .on_click(move |_, _, cx| cx.write_to_clipboard(ClipboardItem::new_string(json.clone())))
     };
-    let code = |text: String| {
+    let code = |id: &'static str, text: String| {
       div()
-        .p(px(12.))
+        .id(id)
+        .w_full()
+        .min_w(px(0.))
+        .overflow_x_scroll()
+        .whitespace_nowrap()
+        .p(px(14.))
         .rounded(px(8.))
         .bg(surface)
         .border_1()
         .border_color(border)
         .font_family("Menlo")
-        .text_size(px(12.))
+        .text_size(px(11.))
+        .line_height(px(18.))
         .child(text)
     };
 
     div()
       .id("settings")
       .size_full()
+      .min_h(px(0.))
       .overflow_y_scroll()
       .child(
         div()
-          .p(px(28.))
-          .max_w(px(720.))
+          .w_full()
+          .max_w(px(824.))
+          .mx_auto()
+          .p(px(32.))
           .flex()
           .flex_col()
-          .child(heading("General", cx))
-          .child(row("Appearance", "", appearance, cx))
-          .child(row(
-            "Show in menu bar",
-            "Quick view of every machine, with start and stop, from the menu bar.",
-            Switch::new("menubar").checked(settings.menubar).on_change(set(|s, v| s.menubar = v, settings.menubar)),
+          .child(crate::ui::layout::heading(
+            "Settings",
+            "A little more personal. Just the way you work.",
             cx,
           ))
-          .child(heading("Machines", cx))
-          .child(row("Location", &format::tilde(&settings.location), location, cx))
-          .child(row(
-            "Share Downloads with new machines",
-            "",
-            Switch::new("sharedownloads")
-              .checked(settings.sharedownloads)
-              .on_change(set(|s, v| s.sharedownloads = v, settings.sharedownloads)),
-            cx,
-          ))
-          .child(heading("Downloads", cx))
-          .child(row(
-            "Keep installers",
-            "Reuse a downloaded ISO or restore image for the next machine of the same system.",
-            Switch::new("keepinstallers")
-              .checked(settings.keepinstallers)
-              .on_change(set(|s, v| s.keepinstallers = v, settings.keepinstallers)),
-            cx,
-          ))
-          .child(row(
-            "Downloaded installers",
-            &format!("{} in {}", format::bytes(self.downloads), format::tilde(&vista_kit::paths::images().to_string_lossy())),
-            clear,
-            cx,
-          ))
-          .child(heading("Agents", cx))
-          .child(row(
-            "Let coding agents manage machines",
-            "Vista's MCP server lets agents create, run, see and drive machines, and run commands inside them.",
-            Switch::new("agents").checked(settings.agents).on_change(set(|s, v| s.agents = v, settings.agents)),
-            cx,
-          ))
-          .child(div().pt(px(12.)).text_size(px(12.)).text_color(dimmed).child("The MCP server is a stdio command. Point your agent at it:"))
-          .child(div().pt(px(6.)).child(code(command)))
-          .child(div().pt(px(12.)).text_size(px(12.)).text_color(dimmed).child("Or add this to the agent's MCP configuration:"))
-          .child(div().pt(px(6.)).child(code(json)))
-          .child(div().flex().gap(px(8.)).pt(px(10.)).child(copy_command).child(copy_json))
-          .child(heading("About", cx))
-          .child(row(
-            "Vista",
-            &format!("Version {} · Apache 2.0 licensed · no accounts, no tracking", env!("CARGO_PKG_VERSION")),
-            Button::new("github", "GitHub")
-              .size(Size::Sm)
-              .variant(Variant::Default)
-              .left_section(Icon::new(IconName::ExternalLink).size(Size::Sm))
-              .on_click(|_, _, cx| cx.open_url("https://github.com/wess/vista")),
-            cx,
-          )),
+          .child(crate::ui::layout::section("General", cx))
+          .child(
+            crate::ui::layout::group(cx)
+              .child(row(
+                "Appearance",
+                "Choose a look, or follow your Mac.",
+                appearance,
+                cx,
+              ))
+              .child(row(
+                "Show in menu bar",
+                "Your machines, always within reach.",
+                Switch::new("menubar")
+                  .checked(settings.menubar)
+                  .on_change(set(|s, v| s.menubar = v, settings.menubar)),
+                cx,
+              )),
+          )
+          .child(crate::ui::layout::section("Machines", cx))
+          .child(
+            crate::ui::layout::group(cx)
+              .child(row(
+                "Save new machines to",
+                &format::tilde(&settings.location),
+                location,
+                cx,
+              ))
+              .child(row(
+                "Share Downloads",
+                "Make your Mac’s Downloads folder available to new machines.",
+                Switch::new("sharedownloads")
+                  .checked(settings.sharedownloads)
+                  .on_change(set(|s, v| s.sharedownloads = v, settings.sharedownloads)),
+                cx,
+              )),
+          )
+          .child(crate::ui::layout::section("Installer storage", cx))
+          .child(
+            crate::ui::layout::group(cx)
+              .child(row(
+                "Keep installers",
+                "Reuse downloads when you create another machine with the same system.",
+                Switch::new("keepinstallers")
+                  .checked(settings.keepinstallers)
+                  .on_change(set(|s, v| s.keepinstallers = v, settings.keepinstallers)),
+                cx,
+              ))
+              .child(row(
+                "Downloaded installers",
+                &format!("{} used", format::bytes(self.downloads)),
+                clear,
+                cx,
+              )),
+          )
+          .child(crate::ui::layout::section("Agents", cx))
+          .child(
+            crate::ui::layout::group(cx).child(row(
+              "Allow agent control",
+              "Let coding agents create and manage machines through Vista’s MCP server.",
+              Switch::new("agents")
+                .checked(settings.agents)
+                .on_change(set(|s, v| s.agents = v, settings.agents)),
+              cx,
+            )),
+          )
+          .child(
+            div()
+              .pt(px(16.))
+              .pb(px(8.))
+              .text_size(px(12.))
+              .text_color(dimmed)
+              .child("Connect your agent with this server path:"),
+          )
+          .child(code("mcp-path", command))
+          .child(
+            div()
+              .pt(px(16.))
+              .pb(px(8.))
+              .text_size(px(12.))
+              .text_color(dimmed)
+              .child("Or copy the configuration into your agent’s MCP settings."),
+          )
+          .child(code("mcp-json", json))
+          .child(
+            div()
+              .flex()
+              .flex_wrap()
+              .gap(px(8.))
+              .pt(px(12.))
+              .child(copy_command)
+              .child(copy_json),
+          )
+          .child(crate::ui::layout::section("About Vista", cx))
+          .child(
+            crate::ui::layout::group(cx).child(row(
+              "Vista",
+              &format!("Version {} · Apache 2.0 license", env!("CARGO_PKG_VERSION")),
+              Button::new("github", "GitHub")
+                .size(Size::Sm)
+                .variant(Variant::Default)
+                .left_section(Icon::new(IconName::ExternalLink).size(Size::Sm))
+                .on_click(|_, _, cx| cx.open_url("https://github.com/wess/vista")),
+              cx,
+            )),
+          )
+          .child(
+            div()
+              .pt(px(12.))
+              .text_size(px(11.))
+              .text_color(dimmed)
+              .child("Made for your Mac. No accounts. No tracking."),
+          ),
       )
   }
 }
