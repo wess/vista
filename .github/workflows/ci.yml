@@ -33,9 +33,7 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec
-      - uses: taiki-e/install-action@d6912b47771dc5c918c774e71b3d82b02327e5c0
-        with:
-          tool: cargo-audit
+      - run: cargo install cargo-audit --locked
       - run: cargo audit
 
   site:
