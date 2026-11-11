@@ -25,7 +25,7 @@ pub(super) fn parse(xml: &str) -> Result<Link> {
       {
         return None;
       }
-      let url = reqwest::Url::parse(&value(file, "FilePath")?).ok()?;
+      let mut url = reqwest::Url::parse(&value(file, "FilePath")?).ok()?;
       let host = url.host_str()?;
       if !(host == "microsoft.com" || host.ends_with(".microsoft.com")) {
         return None;
@@ -33,6 +33,9 @@ pub(super) fn parse(xml: &str) -> Result<Link> {
       if !matches!(url.scheme(), "http" | "https") {
         return None;
       }
+      // Microsoft's catalog still emits HTTP URLs for its own delivery host.
+      // The same path is available over TLS; never send the installer in clear.
+      url.set_scheme("https").ok()?;
       let filename = value(file, "FileName")?;
       if filename.contains('/') || filename.contains('\\') || !filename.ends_with(".esd") {
         return None;
@@ -116,6 +119,6 @@ mod tests {
     assert_eq!(found.size, Some(1234));
     assert!(found
       .url
-      .starts_with("http://dl.delivery.mp.microsoft.com/"));
+      .starts_with("https://dl.delivery.mp.microsoft.com/"));
   }
 }

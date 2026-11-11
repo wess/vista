@@ -30,29 +30,83 @@ const MODIFIERS: [(u64, u16); 4] = [(SHIFT, 56), (CONTROL, 59), (OPTION, 58), (C
 pub fn char_key(c: char) -> Option<(u16, bool)> {
   let lower = c.to_ascii_lowercase();
   let base = match lower {
-    'a' => 0, 's' => 1, 'd' => 2, 'f' => 3, 'h' => 4, 'g' => 5, 'z' => 6, 'x' => 7,
-    'c' => 8, 'v' => 9, 'b' => 11, 'q' => 12, 'w' => 13, 'e' => 14, 'r' => 15,
-    'y' => 16, 't' => 17, 'o' => 31, 'u' => 32, 'i' => 34, 'p' => 35, 'l' => 37,
-    'j' => 38, 'k' => 40, 'n' => 45, 'm' => 46,
+    'a' => 0,
+    's' => 1,
+    'd' => 2,
+    'f' => 3,
+    'h' => 4,
+    'g' => 5,
+    'z' => 6,
+    'x' => 7,
+    'c' => 8,
+    'v' => 9,
+    'b' => 11,
+    'q' => 12,
+    'w' => 13,
+    'e' => 14,
+    'r' => 15,
+    'y' => 16,
+    't' => 17,
+    'o' => 31,
+    'u' => 32,
+    'i' => 34,
+    'p' => 35,
+    'l' => 37,
+    'j' => 38,
+    'k' => 40,
+    'n' => 45,
+    'm' => 46,
     _ => u16::MAX,
   };
   if base != u16::MAX {
     return Some((base, c.is_ascii_uppercase()));
   }
   Some(match c {
-    '1' => (18, false), '2' => (19, false), '3' => (20, false), '4' => (21, false),
-    '5' => (23, false), '6' => (22, false), '7' => (26, false), '8' => (28, false),
-    '9' => (25, false), '0' => (29, false),
-    '!' => (18, true), '@' => (19, true), '#' => (20, true), '$' => (21, true),
-    '%' => (23, true), '^' => (22, true), '&' => (26, true), '*' => (28, true),
-    '(' => (25, true), ')' => (29, true),
-    '-' => (27, false), '_' => (27, true), '=' => (24, false), '+' => (24, true),
-    '[' => (33, false), '{' => (33, true), ']' => (30, false), '}' => (30, true),
-    '\\' => (42, false), '|' => (42, true), ';' => (41, false), ':' => (41, true),
-    '\'' => (39, false), '"' => (39, true), ',' => (43, false), '<' => (43, true),
-    '.' => (47, false), '>' => (47, true), '/' => (44, false), '?' => (44, true),
-    '`' => (50, false), '~' => (50, true),
-    ' ' => (49, false), '\n' => (36, false), '\t' => (48, false),
+    '1' => (18, false),
+    '2' => (19, false),
+    '3' => (20, false),
+    '4' => (21, false),
+    '5' => (23, false),
+    '6' => (22, false),
+    '7' => (26, false),
+    '8' => (28, false),
+    '9' => (25, false),
+    '0' => (29, false),
+    '!' => (18, true),
+    '@' => (19, true),
+    '#' => (20, true),
+    '$' => (21, true),
+    '%' => (23, true),
+    '^' => (22, true),
+    '&' => (26, true),
+    '*' => (28, true),
+    '(' => (25, true),
+    ')' => (29, true),
+    '-' => (27, false),
+    '_' => (27, true),
+    '=' => (24, false),
+    '+' => (24, true),
+    '[' => (33, false),
+    '{' => (33, true),
+    ']' => (30, false),
+    '}' => (30, true),
+    '\\' => (42, false),
+    '|' => (42, true),
+    ';' => (41, false),
+    ':' => (41, true),
+    '\'' => (39, false),
+    '"' => (39, true),
+    ',' => (43, false),
+    '<' => (43, true),
+    '.' => (47, false),
+    '>' => (47, true),
+    '/' => (44, false),
+    '?' => (44, true),
+    '`' => (50, false),
+    '~' => (50, true),
+    ' ' => (49, false),
+    '\n' => (36, false),
+    '\t' => (48, false),
     _ => return None,
   })
 }
@@ -74,8 +128,18 @@ pub fn named_key(name: &str) -> Option<(u16, bool)> {
     "right" => 124,
     "down" => 125,
     "up" => 126,
-    "f1" => 122, "f2" => 120, "f3" => 99, "f4" => 118, "f5" => 96, "f6" => 97,
-    "f7" => 98, "f8" => 100, "f9" => 101, "f10" => 109, "f11" => 103, "f12" => 111,
+    "f1" => 122,
+    "f2" => 120,
+    "f3" => 99,
+    "f4" => 118,
+    "f5" => 96,
+    "f6" => 97,
+    "f7" => 98,
+    "f8" => 100,
+    "f9" => 101,
+    "f10" => 109,
+    "f11" => 103,
+    "f12" => 111,
     "capslock" => 57,
     _ => {
       let mut chars = name.chars();
@@ -132,7 +196,12 @@ fn view() -> Option<(Retained<VZVirtualMachineView>, isize, f64, f64)> {
     let view = runner.view.clone()?;
     let window = runner.window.as_ref()?;
     let height = window.contentLayoutRect().size.height;
-    Some((view, window.windowNumber(), window.backingScaleFactor(), height))
+    Some((
+      view,
+      window.windowNumber(),
+      window.backingScaleFactor(),
+      height,
+    ))
   })
   .flatten()
 }
@@ -160,7 +229,8 @@ fn with_device_bits(flags: u64) -> u64 {
 fn post_key(code: u16, flags: u64, down: bool, is_modifier: bool) -> Result<(), String> {
   main_sync(move || {
     let (view, ..) = view().ok_or("The machine has no display.")?;
-    let event = CGEvent::new_keyboard_event(None, code, down).ok_or("Couldn't create a key event.")?;
+    let event =
+      CGEvent::new_keyboard_event(None, code, down).ok_or("Couldn't create a key event.")?;
     CGEvent::set_flags(Some(&event), CGEventFlags(with_device_bits(flags)));
     if is_modifier {
       CGEvent::set_type(Some(&event), CGEventType::FlagsChanged);
@@ -352,7 +422,10 @@ mod tests {
   #[test]
   fn combos() {
     assert_eq!(parse_combo("cmd+c").unwrap(), (COMMAND, Some(8)));
-    assert_eq!(parse_combo("ctrl+alt+del").unwrap(), (CONTROL | OPTION, Some(117)));
+    assert_eq!(
+      parse_combo("ctrl+alt+del").unwrap(),
+      (CONTROL | OPTION, Some(117))
+    );
     assert_eq!(parse_combo("shift").unwrap(), (SHIFT, None));
     assert_eq!(parse_combo("A").unwrap(), (SHIFT, Some(0)));
     assert!(parse_combo("cmd+nope").is_err());

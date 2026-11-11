@@ -80,8 +80,12 @@ pub enum Response {
   },
   /// Vista Tools' answer, in its own field: both enums are tagged on
   /// `result`, so flattening one into the other would collide.
-  Guest { answer: crate::guest::Response },
-  Error { message: String },
+  Guest {
+    answer: crate::guest::Response,
+  },
+  Error {
+    message: String,
+  },
 }
 
 impl Response {

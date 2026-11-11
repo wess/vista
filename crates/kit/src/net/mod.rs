@@ -58,7 +58,10 @@ mod tests {
   #[test]
   fn finds_the_newest_lease() {
     let text = "{\n\tname=ubuntu\n\tip_address=192.168.64.3\n\thw_address=1,2:a:3c:4:5:6\n\tidentifier=1,2:a:3c:4:5:6\n\tlease=0x6a000000\n}\n{\n\tname=ubuntu\n\tip_address=192.168.64.9\n\thw_address=1,2:a:3c:4:5:6\n\tlease=0x6b000000\n}\n";
-    assert_eq!(find(text, "02:0a:3c:04:05:06").as_deref(), Some("192.168.64.9"));
+    assert_eq!(
+      find(text, "02:0a:3c:04:05:06").as_deref(),
+      Some("192.168.64.9")
+    );
     assert_eq!(find(text, "02:0a:3c:04:05:07"), None);
   }
 }

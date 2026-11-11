@@ -58,11 +58,7 @@ pub fn socket(id: &str) -> PathBuf {
 /// The first eight characters of a machine id: unique enough for a socket
 /// name, short enough to stay well under the socket path limit.
 pub fn short(id: &str) -> &str {
-  let end = id
-    .char_indices()
-    .nth(8)
-    .map(|(i, _)| i)
-    .unwrap_or(id.len());
+  let end = id.char_indices().nth(8).map(|(i, _)| i).unwrap_or(id.len());
   &id[..end]
 }
 

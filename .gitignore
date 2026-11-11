@@ -2,6 +2,7 @@
 /target
 **/target
 /dist
+/site
 **/Cargo.lock
 !/Cargo.lock
 !/crates/firmware/Cargo.lock

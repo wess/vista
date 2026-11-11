@@ -40,9 +40,15 @@ No accounts, no licence keys, no telemetry, no splash screens.
 
 ## Getting started
 
-Requirements: a Mac with Apple silicon, macOS 15 or later (macOS 27 adds
-Secure Boot and first-account setup for macOS guests), and Rust 1.94+ to
-build.
+Requirements: a Mac with Apple silicon and macOS 15 or later (macOS 27 adds
+Secure Boot and first-account setup for macOS guests).
+
+```sh
+brew install --cask wess/packages/vista
+```
+
+Or download the current disk image from [Releases](https://github.com/wess/vista/releases/latest).
+Rust 1.94+ is only needed to build from source:
 
 ```sh
 rustup target add aarch64-unknown-linux-musl   # once: Vista Tools for Linux guests
@@ -96,6 +102,7 @@ for the whole Mac; each machine can be excluded on its own. See
 | [MCP tool reference](docs/tools.md) | All 43 tools |
 | [Vista Tools](docs/guesttools.md) | The agent inside the guest |
 | [Architecture](docs/architecture.md) | Processes, crates, the bundle, the database |
+| [Security](docs/security.md) | Trust boundaries, permissions, downloads and agent access |
 | [Protocols](docs/protocol.md) | The control socket and Vista Tools protocols |
 | [Building and contributing](docs/building.md) | Building, signing, tests, conventions |
 | [Troubleshooting](docs/troubleshooting.md) | Logs and common problems |
@@ -116,10 +123,12 @@ for the whole Mac; each machine can be excluded on its own. See
 ## Built with
 
 Rust, [gpui](https://github.com/zed-industries/zed) and
-[guise](https://github.com/wess/guise) for the interface, tokio, sqlx and
+[guise](https://github.com/wess/guise) for the interface, tokio, rusqlite and
 SQLite, and [objc2](https://github.com/madsmtm/objc2) for the Virtualization
 framework and AppKit.
 
 ## License
 
 Apache License 2.0. See [LICENSE](LICENSE).
+
+Full documentation is also published at [wess.github.io/vista](https://wess.github.io/vista/).

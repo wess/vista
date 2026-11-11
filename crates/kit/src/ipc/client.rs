@@ -28,7 +28,9 @@ pub async fn call(id: &str, request: &Request) -> Result<Response> {
   let limit = match request {
     Request::Suspend | Request::Snapshot { .. } => Duration::from_secs(300),
     Request::Guest { request } => match request {
-      crate::guest::Request::Exec { timeout, .. } => Duration::from_secs(timeout + 15),
+      crate::guest::Request::Exec { timeout, .. } => {
+        Duration::from_secs((*timeout).min(crate::guest::MAX_TIMEOUT) + 15)
+      }
       _ => Duration::from_secs(120),
     },
     Request::Type { text } => Duration::from_secs(10 + text.len() as u64 / 10),

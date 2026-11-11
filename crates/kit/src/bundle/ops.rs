@@ -56,7 +56,11 @@ fn fresh(location: &Path, name: &str) -> PathBuf {
     .collect::<String>()
     .trim()
     .to_string();
-  let base = if base.is_empty() { "Machine".into() } else { base };
+  let base = if base.is_empty() {
+    "Machine".into()
+  } else {
+    base
+  };
   let mut path = location.join(format!("{base}.{EXTENSION}"));
   let mut n = 2;
   while path.exists() {

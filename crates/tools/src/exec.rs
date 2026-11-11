@@ -54,7 +54,10 @@ pub fn run(
   match &user {
     Some(user) => {
       process.uid(user.uid).gid(user.gid);
-      process.env("HOME", &user.home).env("USER", &user.name).env("LOGNAME", &user.name);
+      process
+        .env("HOME", &user.home)
+        .env("USER", &user.name)
+        .env("LOGNAME", &user.name);
       process.current_dir(cwd.as_deref().unwrap_or(&user.home));
     }
     None => {
@@ -63,11 +66,18 @@ pub fn run(
     }
   }
   if std::env::var_os("PATH").is_none() {
-    process.env("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/homebrew/bin");
+    process.env(
+      "PATH",
+      "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/homebrew/bin",
+    );
   }
   process.envs(env);
   process
-    .stdin(if stdin.is_some() { Stdio::piped() } else { Stdio::null() })
+    .stdin(if stdin.is_some() {
+      Stdio::piped()
+    } else {
+      Stdio::null()
+    })
     .stdout(Stdio::piped())
     .stderr(Stdio::piped());
   // Its own process group, so a timeout kills everything it started.
@@ -82,7 +92,7 @@ pub fn run(
   }
   let stdout = collect(child.stdout.take().ok_or("no stdout")?);
   let stderr = collect(child.stderr.take().ok_or("no stderr")?);
-  let limit = Duration::from_secs(timeout.max(1));
+  let limit = Duration::from_secs(timeout.clamp(1, vista_guest::MAX_TIMEOUT));
   let mut timedout = false;
   let status = loop {
     match child.try_wait() {

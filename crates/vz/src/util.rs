@@ -27,7 +27,9 @@ pub fn describe(err: &NSError) -> String {
 }
 
 pub fn read_data(path: &Path) -> Option<Retained<NSData>> {
-  std::fs::read(path).ok().map(|bytes| NSData::with_bytes(&bytes))
+  std::fs::read(path)
+    .ok()
+    .map(|bytes| NSData::with_bytes(&bytes))
 }
 
 pub fn write_data(path: &Path, data: &NSData) -> std::io::Result<()> {

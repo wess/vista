@@ -14,9 +14,9 @@ use dispatch2::DispatchQueue;
 use objc2::rc::Retained;
 use objc2::AnyThread;
 use objc2_app_kit::{NSBitmapImageFileType, NSBitmapImageRep};
-use objc2_foundation::{NSPoint as CGPoint, NSRect as CGRect, NSSize as CGSize};
 use objc2_core_graphics::CGImage;
 use objc2_foundation::{NSDictionary, NSError};
+use objc2_foundation::{NSPoint as CGPoint, NSRect as CGRect, NSSize as CGSize};
 use objc2_screen_capture_kit::{
   SCCaptureResolutionType, SCContentFilter, SCScreenshotManager, SCShareableContent,
   SCStreamConfiguration,
@@ -61,9 +61,14 @@ pub async fn screenshot() -> Response {
 fn begin(tx: Sender) {
   let shape = with(|runner| {
     if !runner.visible {
-      return Err("The machine is running in the background. Show its window first (show_machine).");
+      return Err(
+        "The machine is running in the background. Show its window first (show_machine).",
+      );
     }
-    let window = runner.window.as_ref().ok_or("The machine has no window yet.")?;
+    let window = runner
+      .window
+      .as_ref()
+      .ok_or("The machine has no window yet.")?;
     let frame = window.frame();
     let content = window.contentLayoutRect();
     let scale = window.backingScaleFactor();
@@ -88,7 +93,9 @@ fn begin(tx: Sender) {
         &tx,
         Response::error(format!(
           "Screen capture unavailable: {}",
-          err.map(|e| vista_vz::util::describe(&e)).unwrap_or_default()
+          err
+            .map(|e| vista_vz::util::describe(&e))
+            .unwrap_or_default()
         )),
       );
     };
@@ -97,7 +104,10 @@ fn begin(tx: Sender) {
       .iter()
       .find(|w| unsafe { w.windowID() } as isize == shape.number)
     else {
-      return send(&tx, Response::error("The machine's window isn't on screen."));
+      return send(
+        &tx,
+        Response::error("The machine's window isn't on screen."),
+      );
     };
     unsafe {
       let filter =
@@ -114,7 +124,9 @@ fn begin(tx: Sender) {
           let err = Retained::retain(err);
           Response::error(format!(
             "Capture failed: {}",
-            err.map(|e| vista_vz::util::describe(&e)).unwrap_or_default()
+            err
+              .map(|e| vista_vz::util::describe(&e))
+              .unwrap_or_default()
           ))
         } else {
           encode(&*image, shape)
@@ -136,14 +148,19 @@ fn encode(image: &CGImage, shape: Shape) -> Response {
   let full_height = CGImage::height(Some(image)) as f64;
   let full_width = CGImage::width(Some(image)) as f64;
   let top = (full_height - shape.height * shape.scale).max(0.0);
-  let rect = CGRect::new(CGPoint::new(0.0, top), CGSize::new(full_width, full_height - top));
+  let rect = CGRect::new(
+    CGPoint::new(0.0, top),
+    CGSize::new(full_width, full_height - top),
+  );
   let Some(cropped) = CGImage::with_image_in_rect(Some(image), rect) else {
     return Response::error("Couldn't crop the screenshot.");
   };
   let width = CGImage::width(Some(&cropped)) as u32;
   let height = CGImage::height(Some(&cropped)) as u32;
   let rep = NSBitmapImageRep::initWithCGImage(NSBitmapImageRep::alloc(), &cropped);
-  let png = unsafe { rep.representationUsingType_properties(NSBitmapImageFileType::PNG, &NSDictionary::new()) };
+  let png = unsafe {
+    rep.representationUsingType_properties(NSBitmapImageFileType::PNG, &NSDictionary::new())
+  };
   let Some(png) = png else {
     return Response::error("Couldn't encode the screenshot.");
   };

@@ -14,7 +14,11 @@ pub async fn find(store: &Store, reference: &str) -> Result<(Entry, Bundle), Str
   let found = entries
     .iter()
     .find(|e| e.id == wanted)
-    .or_else(|| entries.iter().find(|e| e.id.starts_with(wanted) && wanted.len() >= 4))
+    .or_else(|| {
+      entries
+        .iter()
+        .find(|e| e.id.starts_with(wanted) && wanted.len() >= 4)
+    })
     .or_else(|| entries.iter().find(|e| e.name.to_lowercase() == lower))
     .or_else(|| {
       let partial: Vec<&Entry> = entries
@@ -28,10 +32,18 @@ pub async fn find(store: &Store, reference: &str) -> Result<(Entry, Bundle), Str
       let names: Vec<String> = entries.iter().map(|e| format!("\"{}\"", e.name)).collect();
       format!(
         "No machine called \"{wanted}\". Machines: {}.",
-        if names.is_empty() { "none yet".to_string() } else { names.join(", ") }
+        if names.is_empty() {
+          "none yet".to_string()
+        } else {
+          names.join(", ")
+        }
       )
     })?;
-  let bundle = bundle::load(&found.path())
-    .map_err(|e| format!("{} is in the library but its files can't be read: {e}", found.name))?;
+  let bundle = bundle::load(&found.path()).map_err(|e| {
+    format!(
+      "{} is in the library but its files can't be read: {e}",
+      found.name
+    )
+  })?;
   Ok((found, bundle))
 }

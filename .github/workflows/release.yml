@@ -1,0 +1,104 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag, such as v0.2.0
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-latest
+    env:
+      CODESIGN_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+      RELEASE_TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec
+        with:
+          targets: aarch64-unknown-linux-musl
+          components: clippy,rustfmt
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0
+
+      - name: Verify tag and source
+        run: |
+          version=$(sed -n 's/^version = "\([0-9][^"]*\)".*/\1/p' Cargo.toml | head -1)
+          test "$RELEASE_TAG" = "v${version}"
+          cargo fmt --all -- --check
+          cargo test --workspace --all-targets --locked
+          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+
+      - name: Require release credentials
+        env:
+          CERT_P12: ${{ secrets.APPLE_CERT_P12 }}
+          CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          test -n "$CODESIGN_IDENTITY"
+          test -n "$CERT_P12"
+          test -n "$CERT_PASSWORD"
+          test -n "$KEYCHAIN_PASSWORD"
+          test -n "$APPLE_ID"
+          test -n "$APPLE_APP_PASSWORD"
+          test -n "$APPLE_TEAM_ID"
+
+      - name: Import signing certificate
+        env:
+          CERT_P12: ${{ secrets.APPLE_CERT_P12 }}
+          CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          keychain="$RUNNER_TEMP/build.keychain"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$keychain"
+          echo "$CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$keychain" -P "$CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$keychain"
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | sed s/\"//g)
+          rm -f "$RUNNER_TEMP/cert.p12"
+
+      - name: Build and notarize
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          scripts/bundle.sh
+          ditto -c -k --keepParent dist/Vista.app "$RUNNER_TEMP/Vista.app.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/Vista.app.zip" --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
+          xcrun stapler staple dist/Vista.app
+          scripts/dmg.sh
+          xcrun notarytool submit dist/Vista.dmg --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
+          xcrun stapler staple dist/Vista.dmg
+          xcrun stapler validate dist/Vista.app
+          xcrun stapler validate dist/Vista.dmg
+          shasum -a 256 dist/Vista.dmg > dist/Vista.dmg.sha256
+
+      - name: Publish release
+        run: gh release create "$RELEASE_TAG" dist/Vista.dmg dist/Vista.dmg.sha256 --generate-notes --target main
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Update Homebrew cask
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          version="${RELEASE_TAG#v}"
+          sha=$(shasum -a 256 dist/Vista.dmg | cut -d' ' -f1)
+          gh repo clone wess/homebrew-packages "$RUNNER_TEMP/tap"
+          sed -e "s/VERSION_PLACEHOLDER/$version/g" -e "s/SHA_PLACEHOLDER/$sha/g" packaging/vista.rb > "$RUNNER_TEMP/tap/Casks/vista.rb"
+          cd "$RUNNER_TEMP/tap"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/vista.rb
+          git commit -m "Update vista to v$version"
+          git push

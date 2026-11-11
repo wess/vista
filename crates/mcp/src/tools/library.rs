@@ -113,9 +113,11 @@ pub fn defs() -> Vec<Value> {
 
 pub fn summary(entry_path: &str, bundle: &Bundle, live: Option<&Live>) -> Value {
   let config = &bundle.config;
-  let state = live
-    .map(|l| l.state)
-    .unwrap_or(if bundle.is_suspended() { State::Suspended } else { State::Stopped });
+  let state = live.map(|l| l.state).unwrap_or(if bundle.is_suspended() {
+    State::Suspended
+  } else {
+    State::Stopped
+  });
   json!({
     "id": config.id,
     "name": config.name,
@@ -155,7 +157,8 @@ async fn list(context: &Context) -> Result<Output, String> {
   let mut machines = Vec::new();
   for entry in store.machines().await.map_err(|e| e.to_string())? {
     let Ok(bundle) = bundle::load(&entry.path()) else {
-      machines.push(json!({"id": entry.id, "name": entry.name, "state": "missing", "path": entry.path}));
+      machines
+        .push(json!({"id": entry.id, "name": entry.name, "state": "missing", "path": entry.path}));
       continue;
     };
     let live = vista_kit::ipc::status(&bundle.config.id).await;
@@ -182,7 +185,10 @@ async fn get(context: &Context, args: &Value) -> Result<Output, String> {
     vista_kit::machine::Os::Macos => "Vista Tools: open \"/Volumes/My Shared Files/Vista Tools/install.command\" inside the guest.",
     _ => "Vista Tools isn't available for this guest; use screenshot and the pointer/keyboard tools.",
   });
-  Ok(Output::data(format!("{} — {}", config.name, config.title()), data))
+  Ok(Output::data(
+    format!("{} — {}", config.name, config.title()),
+    data,
+  ))
 }
 
 fn systems(args: &Value) -> Output {
@@ -192,7 +198,13 @@ fn systems(args: &Value) -> Output {
     .into_iter()
     .filter(|e| {
       os.as_ref()
-        .map(|o| serde_json::to_value(e.os).ok().and_then(|v| v.as_str().map(str::to_string)).as_deref() == Some(o.as_str()))
+        .map(|o| {
+          serde_json::to_value(e.os)
+            .ok()
+            .and_then(|v| v.as_str().map(str::to_string))
+            .as_deref()
+            == Some(o.as_str())
+        })
         .unwrap_or(true)
     })
     .filter(|e| {
@@ -218,7 +230,10 @@ fn systems(args: &Value) -> Output {
     })
     .collect();
   Output::data(
-    format!("{} installable systems. Pass an id to create_machine as \"system\".", list.len()),
+    format!(
+      "{} installable systems. Pass an id to create_machine as \"system\".",
+      list.len()
+    ),
     json!({"systems": list}),
   )
 }
@@ -250,7 +265,11 @@ async fn configure(context: &Context, args: &Value) -> Result<Output, String> {
         Some(interface) => Network::Bridged {
           interface: interface.to_string(),
         },
-        None => return Err(format!("Unknown network \"{other}\": use shared, none or bridged:<interface>.")),
+        None => {
+          return Err(format!(
+            "Unknown network \"{other}\": use shared, none or bridged:<interface>."
+          ))
+        }
       },
     };
   }
@@ -287,7 +306,10 @@ async fn configure(context: &Context, args: &Value) -> Result<Output, String> {
     }
   }
   if let Some(Value::Array(names)) = args.get("remove_shares") {
-    let names: Vec<String> = names.iter().filter_map(|n| n.as_str().map(str::to_string)).collect();
+    let names: Vec<String> = names
+      .iter()
+      .filter_map(|n| n.as_str().map(str::to_string))
+      .collect();
     config.shares.retain(|s| !names.contains(&s.name));
   }
   if flag(args, "eject_installer") == Some(true) {
@@ -297,7 +319,11 @@ async fn configure(context: &Context, args: &Value) -> Result<Output, String> {
   }
   if let Some(disk) = number(args, "disk_gb") {
     let bytes = disk as u64 * 1024 * 1024 * 1024;
-    let system = config.disks.first().cloned().ok_or("This machine has no disk.")?;
+    let system = config
+      .disks
+      .first()
+      .cloned()
+      .ok_or("This machine has no disk.")?;
     if bytes < system.size {
       return Err("Disks can only grow.".into());
     }
@@ -339,7 +365,10 @@ async fn import(context: &Context, args: &Value) -> Result<Output, String> {
 async fn clone(context: &Context, args: &Value) -> Result<Output, String> {
   let bundle = context.machine(args).await?;
   if vista_kit::ipc::status(&bundle.config.id).await.is_some() {
-    return Err(format!("Shut {} down first (stop_machine); a running disk can't be copied safely.", bundle.config.name));
+    return Err(format!(
+      "Shut {} down first (stop_machine); a running disk can't be copied safely.",
+      bundle.config.name
+    ));
   }
   let name = text(args, "name").unwrap_or_else(|| format!("{} copy", bundle.config.name));
   let copy = bundle::duplicate(&bundle, &name).map_err(|e| e.to_string())?;
@@ -366,6 +395,12 @@ async fn delete(context: &Context, args: &Value) -> Result<Output, String> {
   }
   bundle::delete(&bundle).map_err(|e| e.to_string())?;
   let store = context.store().await?;
-  store.forget(&bundle.config.id).await.map_err(|e| e.to_string())?;
-  Ok(Output::text(format!("Moved {} to the Trash.", bundle.config.name)))
+  store
+    .forget(&bundle.config.id)
+    .await
+    .map_err(|e| e.to_string())?;
+  Ok(Output::text(format!(
+    "Moved {} to the Trash.",
+    bundle.config.name
+  )))
 }

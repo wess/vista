@@ -10,7 +10,7 @@ mod files;
 mod listen;
 mod user;
 
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 
 use vista_guest::{Hello, Request, Response};
 
@@ -23,7 +23,10 @@ fn main() {
   let listener = match listen::bind(vista_guest::PORT) {
     Ok(fd) => fd,
     Err(err) => {
-      eprintln!("vistatools: can't listen on vsock port {}: {err}", vista_guest::PORT);
+      eprintln!(
+        "vistatools: can't listen on vsock port {}: {err}",
+        vista_guest::PORT
+      );
       std::process::exit(1);
     }
   };
@@ -42,18 +45,27 @@ fn main() {
 }
 
 fn serve(stream: std::fs::File) {
-  let Ok(writer) = stream.try_clone() else { return };
+  let Ok(writer) = stream.try_clone() else {
+    return;
+  };
   let mut writer = writer;
-  let mut reader = BufReader::with_capacity(1 << 20, stream);
+  let reader = BufReader::with_capacity(1 << 20, stream);
   let mut line = String::new();
-  if reader.read_line(&mut line).unwrap_or(0) == 0 {
+  let mut limited = reader.take(vista_guest::MAX_MESSAGE + 1);
+  if limited.read_line(&mut line).unwrap_or(0) == 0 {
     return;
   }
-  let response = match serde_json::from_str::<Request>(line.trim()) {
-    Ok(request) => handle(request),
-    Err(err) => Response::Error {
-      message: format!("bad request: {err}"),
-    },
+  let response = if line.len() as u64 > vista_guest::MAX_MESSAGE {
+    Response::Error {
+      message: "request is too large".into(),
+    }
+  } else {
+    match serde_json::from_str::<Request>(line.trim()) {
+      Ok(request) => handle(request),
+      Err(err) => Response::Error {
+        message: format!("bad request: {err}"),
+      },
+    }
   };
   if let Ok(mut text) = serde_json::to_string(&response) {
     text.push('\n');
@@ -74,8 +86,17 @@ fn handle(request: Request) -> Response {
       timeout,
       admin,
     } => exec::run(&command, shell, cwd, env, stdin, timeout, admin).map(Response::Exec),
-    Request::Read { path, offset, length } => files::read(&path, offset, length),
-    Request::Write { path, data, append, mode } => files::write(&path, &data, append, mode),
+    Request::Read {
+      path,
+      offset,
+      length,
+    } => files::read(&path, offset, length),
+    Request::Write {
+      path,
+      data,
+      append,
+      mode,
+    } => files::write(&path, &data, append, mode),
     Request::List { path } => files::list(&path),
     Request::Stat { path } => files::stat(&path).map(Response::Info),
     Request::Mkdir { path } => files::mkdir(&path),
@@ -85,20 +106,29 @@ fn handle(request: Request) -> Response {
 }
 
 fn read_trim(path: &str) -> String {
-  std::fs::read_to_string(path).map(|s| s.trim().to_string()).unwrap_or_default()
+  std::fs::read_to_string(path)
+    .map(|s| s.trim().to_string())
+    .unwrap_or_default()
 }
 
 fn os_name() -> String {
   if cfg!(target_os = "macos") {
     let output = std::process::Command::new("/usr/bin/sw_vers").output();
-    let text = output.map(|o| String::from_utf8_lossy(&o.stdout).to_string()).unwrap_or_default();
+    let text = output
+      .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
+      .unwrap_or_default();
     let field = |key: &str| {
       text
         .lines()
         .find_map(|l| l.strip_prefix(key).map(|v| v.trim().to_string()))
         .unwrap_or_default()
     };
-    format!("{} {} ({})", field("ProductName:"), field("ProductVersion:"), field("BuildVersion:"))
+    format!(
+      "{} {} ({})",
+      field("ProductName:"),
+      field("ProductVersion:"),
+      field("BuildVersion:")
+    )
   } else {
     read_trim("/etc/os-release")
       .lines()
@@ -111,13 +141,19 @@ fn os_name() -> String {
 fn hello() -> Hello {
   let mut uts: libc::utsname = unsafe { std::mem::zeroed() };
   unsafe { libc::uname(&mut uts) };
-  let field = |raw: &[libc::c_char]| unsafe { std::ffi::CStr::from_ptr(raw.as_ptr()) }.to_string_lossy().to_string();
+  let field = |raw: &[libc::c_char]| {
+    unsafe { std::ffi::CStr::from_ptr(raw.as_ptr()) }
+      .to_string_lossy()
+      .to_string()
+  };
   Hello {
     version: env!("CARGO_PKG_VERSION").into(),
     os: os_name(),
     arch: field(&uts.machine),
     hostname: field(&uts.nodename),
-    user: user::console().map(|u| u.name).unwrap_or_else(|| "root".into()),
+    user: user::console()
+      .map(|u| u.name)
+      .unwrap_or_else(|| "root".into()),
     kernel: format!("{} {}", field(&uts.sysname), field(&uts.release)),
   }
 }

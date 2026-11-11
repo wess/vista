@@ -24,10 +24,16 @@ async fn main() {
     };
     std::process::exit(tools::jobs::work(id).await);
   }
-  if args.first().map(|a| a == "--help" || a == "-h").unwrap_or(false) {
+  if args
+    .first()
+    .map(|a| a == "--help" || a == "-h")
+    .unwrap_or(false)
+  {
     println!(
       "vistamcp — Vista's MCP server (stdio).\n\nPoint an MCP-capable agent at this command:\n  {}",
-      std::env::current_exe().map(|p| p.display().to_string()).unwrap_or_else(|_| "vistamcp".into())
+      std::env::current_exe()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|_| "vistamcp".into())
     );
     return;
   }

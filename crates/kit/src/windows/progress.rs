@@ -91,7 +91,7 @@ impl Fat {
 
   fn entry(&mut self, directory: u32, name: &[u8; 11]) -> Option<(u32, usize)> {
     let entries = self.chain(directory, 128 * 1024)?;
-    for entry in entries.chunks_exact(32) {
+    for entry in entries.as_chunks::<32>().0 {
       if entry[0] == 0 {
         break;
       }

@@ -8,7 +8,12 @@ use crate::machine::{Bus, Config, Installer, Os, Share};
 
 /// What the installer at `path` installs, judging by its name.
 pub fn guess_os(path: &Path) -> Os {
-  match path.extension().and_then(|e| e.to_str()).map(str::to_lowercase).as_deref() {
+  match path
+    .extension()
+    .and_then(|e| e.to_str())
+    .map(str::to_lowercase)
+    .as_deref()
+  {
     Some("ipsw") => Os::Macos,
     _ => {
       let name = path.to_string_lossy().to_lowercase();
@@ -31,14 +36,18 @@ pub fn configure(spec: &Spec, entry: Option<&Entry>, release: &str, installer: &
     .unwrap_or_else(|| guess_os(installer));
   let mut config = Config::new(spec.name.trim(), os);
   if config.name.is_empty() {
-    config.name = entry.map(|e| e.title()).unwrap_or_else(|| os.label().to_string());
+    config.name = entry
+      .map(|e| e.title())
+      .unwrap_or_else(|| os.label().to_string());
   }
-  config.family = entry.map(|e| e.family.to_string()).unwrap_or_else(|| match os {
-    Os::Macos => "macos".into(),
-    Os::Windows => "windows".into(),
-    Os::Linux => "linux".into(),
-    Os::Other => String::new(),
-  });
+  config.family = entry
+    .map(|e| e.family.to_string())
+    .unwrap_or_else(|| match os {
+      Os::Macos => "macos".into(),
+      Os::Windows => "windows".into(),
+      Os::Linux => "linux".into(),
+      Os::Other => String::new(),
+    });
   config.release = release.to_string();
   if let Some(cpus) = spec.cpus {
     config.cpus = cpus.max(1);

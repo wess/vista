@@ -138,8 +138,16 @@ async fn guest(bundle: &Bundle, request: Guest) -> Result<Answer, String> {
 
 pub async fn call(context: &Context, name: &str, args: &Value) -> Option<Result<Output, String>> {
   let known = [
-    "guest_info", "run_command", "read_file", "write_file", "list_directory", "file_info",
-    "make_directory", "delete_path", "upload_file", "download_file",
+    "guest_info",
+    "run_command",
+    "read_file",
+    "write_file",
+    "list_directory",
+    "file_info",
+    "make_directory",
+    "delete_path",
+    "upload_file",
+    "download_file",
   ];
   if !known.contains(&name) {
     return None;
@@ -166,7 +174,11 @@ async fn dispatch(context: &Context, name: &str, args: &Value) -> Result<Output,
         env: args
           .get("env")
           .and_then(Value::as_object)
-          .map(|m| m.iter().filter_map(|(k, v)| v.as_str().map(|v| (k.clone(), v.to_string()))).collect())
+          .map(|m| {
+            m.iter()
+              .filter_map(|(k, v)| v.as_str().map(|v| (k.clone(), v.to_string())))
+              .collect()
+          })
           .unwrap_or_default(),
         stdin: text(args, "stdin"),
         timeout: number(args, "timeout").map(|t| t as u64).unwrap_or(120),
@@ -210,10 +222,24 @@ async fn dispatch(context: &Context, name: &str, args: &Value) -> Result<Output,
             "base64" => None,
             _ => String::from_utf8(bytes.clone()).ok(),
           };
-          let note = format!("{path}: {} of {size} bytes{}", bytes.len(), if eof { "" } else { " (more remains; read again with offset)" });
+          let note = format!(
+            "{path}: {} of {size} bytes{}",
+            bytes.len(),
+            if eof {
+              ""
+            } else {
+              " (more remains; read again with offset)"
+            }
+          );
           Ok(match as_text {
-            Some(text) => Output::data(note, json!({"path": path, "size": size, "eof": eof, "encoding": "text", "content": text})),
-            None => Output::data(note, json!({"path": path, "size": size, "eof": eof, "encoding": "base64", "content": data})),
+            Some(text) => Output::data(
+              note,
+              json!({"path": path, "size": size, "eof": eof, "encoding": "text", "content": text}),
+            ),
+            None => Output::data(
+              note,
+              json!({"path": path, "size": size, "eof": eof, "encoding": "base64", "content": data}),
+            ),
           })
         }
         _ => Err("unexpected answer".into()),
@@ -226,15 +252,44 @@ async fn dispatch(context: &Context, name: &str, args: &Value) -> Result<Output,
         Some("base64") => content,
         _ => b64.encode(content.as_bytes()),
       };
-      guest(&bundle, Guest::Write { path: path.clone(), data, append: flag(args, "append").unwrap_or(false), mode: text(args, "mode") }).await?;
+      guest(
+        &bundle,
+        Guest::Write {
+          path: path.clone(),
+          data,
+          append: flag(args, "append").unwrap_or(false),
+          mode: text(args, "mode"),
+        },
+      )
+      .await?;
       Ok(Output::text(format!("Wrote {path}.")))
     }
-    "list_directory" => match guest(&bundle, Guest::List { path: required(args, "path")? }).await? {
-      Answer::Entries { entries } => Ok(Output::data(format!("{} entries.", entries.len()), json!({"entries": entries}))),
+    "list_directory" => match guest(
+      &bundle,
+      Guest::List {
+        path: required(args, "path")?,
+      },
+    )
+    .await?
+    {
+      Answer::Entries { entries } => Ok(Output::data(
+        format!("{} entries.", entries.len()),
+        json!({"entries": entries}),
+      )),
       _ => Err("unexpected answer".into()),
     },
-    "file_info" => match guest(&bundle, Guest::Stat { path: required(args, "path")? }).await {
-      Ok(Answer::Info(info)) => Ok(Output::data(format!("{} is a {}.", info.path, info.kind), json!({"exists": true, "info": info}))),
+    "file_info" => match guest(
+      &bundle,
+      Guest::Stat {
+        path: required(args, "path")?,
+      },
+    )
+    .await
+    {
+      Ok(Answer::Info(info)) => Ok(Output::data(
+        format!("{} is a {}.", info.path, info.kind),
+        json!({"exists": true, "info": info}),
+      )),
       Ok(_) => Err("unexpected answer".into()),
       Err(err) if err.contains("No such file") || err.contains("not found") => {
         Ok(Output::data("It doesn't exist.", json!({"exists": false})))
@@ -248,7 +303,14 @@ async fn dispatch(context: &Context, name: &str, args: &Value) -> Result<Output,
     }
     "delete_path" => {
       let path = required(args, "path")?;
-      guest(&bundle, Guest::Remove { path: path.clone(), recursive: flag(args, "recursive").unwrap_or(false) }).await?;
+      guest(
+        &bundle,
+        Guest::Remove {
+          path: path.clone(),
+          recursive: flag(args, "recursive").unwrap_or(false),
+        },
+      )
+      .await?;
       Ok(Output::text(format!("Deleted {path}.")))
     }
     "upload_file" => {
@@ -257,20 +319,45 @@ async fn dispatch(context: &Context, name: &str, args: &Value) -> Result<Output,
       let bytes = std::fs::read(&host).map_err(|e| format!("{host}: {e}"))?;
       let mut first = true;
       for chunk in bytes.chunks(CHUNK as usize) {
-        guest(&bundle, Guest::Write { path: target.clone(), data: b64.encode(chunk), append: !first, mode: None }).await?;
+        guest(
+          &bundle,
+          Guest::Write {
+            path: target.clone(),
+            data: b64.encode(chunk),
+            append: !first,
+            mode: None,
+          },
+        )
+        .await?;
         first = false;
       }
       if bytes.is_empty() {
-        guest(&bundle, Guest::Write { path: target.clone(), data: String::new(), append: false, mode: None }).await?;
+        guest(
+          &bundle,
+          Guest::Write {
+            path: target.clone(),
+            data: String::new(),
+            append: false,
+            mode: None,
+          },
+        )
+        .await?;
       }
-      Ok(Output::text(format!("Copied {} bytes to {target}.", bytes.len())))
+      Ok(Output::text(format!(
+        "Copied {} bytes to {target}.",
+        bytes.len()
+      )))
     }
     "download_file" => {
       let source = required(args, "guest_path")?;
       let host = required(args, "host_path")?;
       let mut out = Vec::new();
       loop {
-        let request = Guest::Read { path: source.clone(), offset: out.len() as u64, length: Some(CHUNK.min(MAX_FILE)) };
+        let request = Guest::Read {
+          path: source.clone(),
+          offset: out.len() as u64,
+          length: Some(CHUNK.min(MAX_FILE)),
+        };
         match guest(&bundle, request).await? {
           Answer::Data { data, eof, .. } => {
             out.extend(b64.decode(&data).map_err(|e| e.to_string())?);
@@ -285,7 +372,10 @@ async fn dispatch(context: &Context, name: &str, args: &Value) -> Result<Output,
         let _ = std::fs::create_dir_all(dir);
       }
       std::fs::write(&host, &out).map_err(|e| format!("{host}: {e}"))?;
-      Ok(Output::text(format!("Copied {} bytes to {host}.", out.len())))
+      Ok(Output::text(format!(
+        "Copied {} bytes to {host}.",
+        out.len()
+      )))
     }
     _ => Err("unknown".into()),
   }

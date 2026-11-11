@@ -40,7 +40,15 @@ impl Machine {
   pub fn state(&self) -> State {
     match &self.live {
       Some(live) => live.state,
-      None if self.bundle.as_ref().map(|b| b.is_suspended()).unwrap_or(false) => State::Suspended,
+      None
+        if self
+          .bundle
+          .as_ref()
+          .map(|b| b.is_suspended())
+          .unwrap_or(false) =>
+      {
+        State::Suspended
+      }
       None => State::Stopped,
     }
   }

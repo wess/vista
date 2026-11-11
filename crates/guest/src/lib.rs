@@ -13,6 +13,14 @@ pub const PORT: u32 = 7000;
 /// shared folder.
 pub const MAX_FILE: u64 = 64 * 1024 * 1024;
 
+/// Largest JSON request or response accepted on a control connection. A
+/// 64 MiB file expands while base64 encoded, so leave room for its envelope.
+pub const MAX_MESSAGE: u64 = 96 * 1024 * 1024;
+
+/// Commands are interactive operations, not unattended jobs. Bounding this
+/// keeps a lost client from leaving a guest process behind indefinitely.
+pub const MAX_TIMEOUT: u64 = 60 * 60;
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "lowercase")]
 pub enum Request {

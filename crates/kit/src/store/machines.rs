@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use sqlx::FromRow;
+use tokio_rusqlite::rusqlite::params;
 
 use super::Store;
 use crate::bundle::Bundle;
@@ -8,7 +8,7 @@ use crate::Result;
 
 /// A row in the library: where a machine's bundle is, and enough about it to
 /// draw the sidebar without opening every bundle.
-#[derive(Clone, Debug, PartialEq, FromRow)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Entry {
   pub id: String,
   pub path: String,
@@ -28,12 +28,30 @@ impl Entry {
 
 impl Store {
   pub async fn machines(&self) -> Result<Vec<Entry>> {
-    let rows = sqlx::query_as::<_, Entry>(
-      "SELECT id, path, name, os, family, position, created, lastrun
-       FROM machines ORDER BY position, created",
-    )
-    .fetch_all(self.pool())
-    .await?;
+    let rows = self
+      .connection()
+      .call(|connection| {
+        let mut statement = connection.prepare(
+          "SELECT id, path, name, os, family, position, created, lastrun
+           FROM machines ORDER BY position, created",
+        )?;
+        let rows = statement
+          .query_map([], |row| {
+            Ok(Entry {
+              id: row.get(0)?,
+              path: row.get(1)?,
+              name: row.get(2)?,
+              os: row.get(3)?,
+              family: row.get(4)?,
+              position: row.get(5)?,
+              created: row.get(6)?,
+              lastrun: row.get(7)?,
+            })
+          })?
+          .collect();
+        rows
+      })
+      .await?;
     Ok(rows)
   }
 
@@ -44,55 +62,77 @@ impl Store {
       .as_str()
       .unwrap_or("other")
       .to_string();
-    let next: i64 = sqlx::query_scalar("SELECT COALESCE(MAX(position), -1) + 1 FROM machines")
-      .fetch_one(self.pool())
+    let id = config.id.clone();
+    let path = bundle.path.to_string_lossy().to_string();
+    let name = config.name.clone();
+    let family = config.family.clone();
+    let created = config.created;
+    self
+      .connection()
+      .call(move |connection| {
+        let next: i64 = connection.query_row(
+          "SELECT COALESCE(MAX(position), -1) + 1 FROM machines",
+          [],
+          |row| row.get(0),
+        )?;
+        connection.execute(
+          "INSERT INTO machines (id, path, name, os, family, position, created)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+         ON CONFLICT(id) DO UPDATE SET
+           path = excluded.path, name = excluded.name,
+           os = excluded.os, family = excluded.family",
+          params![id, path, name, os, family, next, created],
+        )?;
+        Ok(())
+      })
       .await?;
-    sqlx::query(
-      "INSERT INTO machines (id, path, name, os, family, position, created)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
-       ON CONFLICT(id) DO UPDATE SET
-         path = excluded.path, name = excluded.name,
-         os = excluded.os, family = excluded.family",
-    )
-    .bind(&config.id)
-    .bind(bundle.path.to_string_lossy().to_string())
-    .bind(&config.name)
-    .bind(os)
-    .bind(&config.family)
-    .bind(next)
-    .bind(config.created)
-    .execute(self.pool())
-    .await?;
     Ok(())
   }
 
   pub async fn forget(&self, id: &str) -> Result<()> {
-    sqlx::query("DELETE FROM machines WHERE id = ?1")
-      .bind(id)
-      .execute(self.pool())
+    let id = id.to_string();
+    self
+      .connection()
+      .call(move |connection| {
+        connection.execute("DELETE FROM machines WHERE id = ?1", [id])?;
+        Ok(())
+      })
       .await?;
     Ok(())
   }
 
   pub async fn touch(&self, id: &str) -> Result<()> {
-    sqlx::query("UPDATE machines SET lastrun = ?2 WHERE id = ?1")
-      .bind(id)
-      .bind(crate::machine::now())
-      .execute(self.pool())
+    let id = id.to_string();
+    let now = crate::machine::now();
+    self
+      .connection()
+      .call(move |connection| {
+        connection.execute(
+          "UPDATE machines SET lastrun = ?2 WHERE id = ?1",
+          params![id, now],
+        )?;
+        Ok(())
+      })
       .await?;
     Ok(())
   }
 
   pub async fn reorder(&self, ids: &[String]) -> Result<()> {
-    let mut tx = self.pool().begin().await?;
-    for (position, id) in ids.iter().enumerate() {
-      sqlx::query("UPDATE machines SET position = ?2 WHERE id = ?1")
-        .bind(id)
-        .bind(position as i64)
-        .execute(&mut *tx)
-        .await?;
-    }
-    tx.commit().await?;
+    let ids = ids.to_vec();
+    self
+      .connection()
+      .call(move |connection| {
+        let transaction = connection.transaction()?;
+        for (position, id) in ids.iter().enumerate() {
+          transaction.execute(
+            "UPDATE machines SET position = ?2 WHERE id = ?1",
+            params![id, position as i64],
+          )?;
+        }
+        transaction.commit()?;
+        Ok(())
+      })
+      .await?;
     Ok(())
   }
 

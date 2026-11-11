@@ -25,7 +25,11 @@ fn item(
   item
 }
 
-fn submenu(mtm: MainThreadMarker, title: &str, items: Vec<Retained<NSMenuItem>>) -> Retained<NSMenuItem> {
+fn submenu(
+  mtm: MainThreadMarker,
+  title: &str,
+  items: Vec<Retained<NSMenuItem>>,
+) -> Retained<NSMenuItem> {
   let menu = NSMenu::initWithTitle(NSMenu::alloc(mtm), &NSString::from_str(title));
   for entry in items {
     menu.addItem(&entry);
@@ -74,7 +78,12 @@ pub fn install(app: &NSApplication, mtm: MainThreadMarker) {
     vec![
       item(mtm, "Minimize", Some(sel!(performMiniaturize:)), None),
       item(mtm, "Zoom", Some(sel!(performZoom:)), None),
-      item(mtm, "Enter Full Screen", Some(sel!(toggleFullScreen:)), None),
+      item(
+        mtm,
+        "Enter Full Screen",
+        Some(sel!(toggleFullScreen:)),
+        None,
+      ),
     ],
   ));
   app.setMainMenu(Some(&main));

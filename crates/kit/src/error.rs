@@ -5,7 +5,7 @@ use std::fmt;
 #[derive(Debug)]
 pub enum Error {
   Io(std::io::Error),
-  Db(sqlx::Error),
+  Db(String),
   Http(reqwest::Error),
   Json(serde_json::Error),
   Message(String),
@@ -39,9 +39,15 @@ impl From<std::io::Error> for Error {
   }
 }
 
-impl From<sqlx::Error> for Error {
-  fn from(err: sqlx::Error) -> Self {
-    Error::Db(err)
+impl From<tokio_rusqlite::rusqlite::Error> for Error {
+  fn from(err: tokio_rusqlite::rusqlite::Error) -> Self {
+    Error::Db(err.to_string())
+  }
+}
+
+impl From<tokio_rusqlite::Error<tokio_rusqlite::rusqlite::Error>> for Error {
+  fn from(err: tokio_rusqlite::Error<tokio_rusqlite::rusqlite::Error>) -> Self {
+    Error::Db(err.to_string())
   }
 }
 

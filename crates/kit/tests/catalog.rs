@@ -32,6 +32,9 @@ async fn every_entry_resolves() {
 async fn windows_link() {
   let client = vista_kit::download::client();
   let link = vista_kit::windows::download::link(&client).await.unwrap();
-  println!("{} {} {:?} {:?}", link.filename, link.version, link.size, link.sha256);
+  println!(
+    "{} {} {:?} {:?}",
+    link.filename, link.version, link.size, link.sha256
+  );
   assert!(link.url.starts_with("https://"));
 }

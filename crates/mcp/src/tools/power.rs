@@ -10,7 +10,15 @@ use crate::output::Output;
 
 pub fn defs() -> Vec<Value> {
   let one = |name: &str, title: &str, description: &str, destructive: bool| {
-    tool(name, title, description, json!({"machine": machine_arg()}), &["machine"], false, destructive)
+    tool(
+      name,
+      title,
+      description,
+      json!({"machine": machine_arg()}),
+      &["machine"],
+      false,
+      destructive,
+    )
   };
   vec![
     tool(
@@ -62,7 +70,12 @@ pub async fn call(context: &Context, name: &str, args: &Value) -> Option<Result<
   Some(simple(context, args, request, name).await)
 }
 
-async fn simple(context: &Context, args: &Value, request: Request, name: &str) -> Result<Output, String> {
+async fn simple(
+  context: &Context,
+  args: &Value,
+  request: Request,
+  name: &str,
+) -> Result<Output, String> {
   let bundle = context.machine(args).await?;
   ask(&bundle, &request).await?;
   let verb = match name {
@@ -94,7 +107,13 @@ async fn start(context: &Context, args: &Value) -> Result<Output, String> {
   let _ = store.touch(&id).await;
   let live = vista_kit::launch::wait_ready(&id, Duration::from_secs(30))
     .await
-    .ok_or_else(|| format!("{} didn't come up. Its log is {}/machine.log.", bundle.config.name, bundle.path.display()))?;
+    .ok_or_else(|| {
+      format!(
+        "{} didn't come up. Its log is {}/machine.log.",
+        bundle.config.name,
+        bundle.path.display()
+      )
+    })?;
   if live.state == vista_kit::machine::State::Error {
     return Err(format!(
       "{} failed to start: {}",
@@ -119,7 +138,12 @@ async fn stop(context: &Context, args: &Value) -> Result<Output, String> {
   let request = if force { Request::Kill } else { Request::Stop };
   match ask(&bundle, &request).await {
     Ok(_) => {}
-    Err(err) if err.contains("isn't running") => return Ok(Output::text(format!("{} is already off.", bundle.config.name))),
+    Err(err) if err.contains("isn't running") => {
+      return Ok(Output::text(format!(
+        "{} is already off.",
+        bundle.config.name
+      )))
+    }
     Err(err) => return Err(err),
   }
   if flag(args, "wait").unwrap_or(true) {
@@ -135,5 +159,8 @@ async fn stop(context: &Context, args: &Value) -> Result<Output, String> {
     )));
   }
   let _ = Response::Ok;
-  Ok(Output::text(format!("Asked {} to shut down.", bundle.config.name)))
+  Ok(Output::text(format!(
+    "Asked {} to shut down.",
+    bundle.config.name
+  )))
 }

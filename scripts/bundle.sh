@@ -16,7 +16,12 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
 
-identity="${CODESIGN_IDENTITY:--}"
+if [ -z "${CODESIGN_IDENTITY:-}" ]; then
+  CODESIGN_IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null \
+    | sed -n 's/.*"\(Developer ID Application: [^"]*\)".*/\1/p' | head -1)"
+  CODESIGN_IDENTITY="${CODESIGN_IDENTITY:--}"
+fi
+identity="$CODESIGN_IDENTITY"
 version="$(sed -n 's/^version = "\([0-9][^"]*\)".*/\1/p' Cargo.toml | head -1)"
 plist_version="${version%%-*}"
 echo "[bundle] Vista $version"
@@ -85,5 +90,5 @@ sign "$helper"
 sign "$app/Contents/MacOS/vistamcp"
 sign "$app/Contents/MacOS/vista"
 sign "$app"
-codesign --verify --strict --verbose=2 "$app" || true
+codesign --verify --deep --strict --verbose=2 "$app"
 echo "[bundle] -> $app"

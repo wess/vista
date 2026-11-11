@@ -26,7 +26,10 @@ fn frame(runner: &Runner) -> NSRect {
     width *= scale;
     height *= scale;
   }
-  NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(width.max(640.0), height.max(400.0)))
+  NSRect::new(
+    NSPoint::new(0.0, 0.0),
+    NSSize::new(width.max(640.0), height.max(400.0)),
+  )
 }
 
 fn window(runner: &Runner, rect: NSRect, resizable: bool) -> Retained<NSWindow> {
@@ -106,7 +109,10 @@ pub fn installing(runner: &mut Runner) {
   let content = NSView::initWithFrame(NSView::alloc(mtm), rect);
 
   let label = NSTextField::labelWithString(&NSString::from_str("Installing macOS…"), mtm);
-  label.setFrame(NSRect::new(NSPoint::new(24.0, 66.0), NSSize::new(372.0, 22.0)));
+  label.setFrame(NSRect::new(
+    NSPoint::new(24.0, 66.0),
+    NSSize::new(372.0, 22.0),
+  ));
   content.addSubview(&label);
 
   let bar = NSProgressIndicator::initWithFrame(

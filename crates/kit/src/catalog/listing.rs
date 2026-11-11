@@ -93,7 +93,12 @@ pub async fn candidates(client: &reqwest::Client, index: &str) -> Result<Vec<Str
   if names.is_empty() {
     return Err(Error::msg(format!("no releases listed at {parent}")));
   }
-  Ok(names.into_iter().map(|n| index.replacen("{n}", &n, 1)).collect())
+  Ok(
+    names
+      .into_iter()
+      .map(|n| index.replacen("{n}", &n, 1))
+      .collect(),
+  )
 }
 
 #[cfg(test)]
@@ -116,7 +121,7 @@ mod tests {
 
   #[test]
   fn arch_suffixes_dont_outrank_point_releases() {
-    let names = vec![
+    let names = [
       "ubuntu-26.04-desktop-arm64.iso".to_string(),
       "ubuntu-26.04.1-desktop-arm64.iso".to_string(),
     ];

@@ -44,7 +44,7 @@ everything else exists while someone has it open.
 
 | Directory | Package | What it is |
 | --- | --- | --- |
-| `crates/kit` | `vista-kit` | Everything every process agrees on: the machine model, bundles and snapshots, the SQLite library, the installer catalog and resolver, downloads, creation jobs, Windows install media, launching machines, the control protocol and its client and server. No AppKit, no gpui. |
+| `crates/kit` | `vista-kit` | Everything every process agrees on: the machine model, bundles and snapshots, the asynchronous SQLite library, the installer catalog and resolver, downloads, creation jobs, Windows install media, launching machines, the control protocol and its client and server. No AppKit, no gpui. |
 | `crates/guest` | `vista-guest` | The Vista Tools protocol, on its own so `vistatools` builds without SQLite or TLS. |
 | `crates/vz` | `vista-vz` | The bridge to Apple's Virtualization framework through objc2: a bundle to a `VZVirtualMachineConfiguration`, macOS installation, and the macOS 26/27 additions (Secure Boot, guest provisioning) reached by selector after checking the host answers. |
 | `crates/machine` | `vista-machine` | `vistamachine`. |
@@ -114,7 +114,8 @@ refuses to open the machine rather than misread it.
 
 ## The library database
 
-`~/Library/Application Support/Vista/vista.db`, SQLite through sqlx:
+`~/Library/Application Support/Vista/vista.db`, SQLite through a dedicated
+tokio-rusqlite worker connection:
 
 | Table | Holds |
 | --- | --- |

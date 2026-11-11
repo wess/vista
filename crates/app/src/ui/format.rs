@@ -30,7 +30,12 @@ pub fn gib(bytes: u64) -> String {
 }
 
 pub fn duration(seconds: u64) -> String {
-  let (d, h, m, s) = (seconds / 86400, seconds / 3600 % 24, seconds / 60 % 60, seconds % 60);
+  let (d, h, m, s) = (
+    seconds / 86400,
+    seconds / 3600 % 24,
+    seconds / 60 % 60,
+    seconds % 60,
+  );
   if d > 0 {
     format!("{d}d {h}h")
   } else if h > 0 {

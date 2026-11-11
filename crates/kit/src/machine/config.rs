@@ -118,7 +118,9 @@ pub enum Network {
   Shared,
   /// The guest sits on the Mac's physical network. Needs the
   /// `com.apple.vm.networking` entitlement, which Apple grants per developer.
-  Bridged { interface: String },
+  Bridged {
+    interface: String,
+  },
   None,
 }
 
@@ -162,7 +164,6 @@ pub struct Account {
   pub ssh: bool,
 }
 
-
 fn format() -> u32 {
   FORMAT
 }
@@ -174,7 +175,11 @@ fn yes() -> bool {
 impl Config {
   pub fn new(name: impl Into<String>, os: Os) -> Self {
     let (cpus, memory, disk) = os.defaults();
-    let bus = if os == Os::Windows { Bus::Nvme } else { Bus::Virtio };
+    let bus = if os == Os::Windows {
+      Bus::Nvme
+    } else {
+      Bus::Virtio
+    };
     Config {
       format: FORMAT,
       id: uuid::Uuid::new_v4().to_string(),

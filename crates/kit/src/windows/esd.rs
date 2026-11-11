@@ -52,7 +52,9 @@ fn text(bytes: &[u8]) -> String {
   if bytes.starts_with(&[0xff, 0xfe]) {
     String::from_utf16_lossy(
       &bytes[2..]
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
         .collect::<Vec<_>>(),
     )

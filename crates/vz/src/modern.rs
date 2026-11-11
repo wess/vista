@@ -45,7 +45,9 @@ pub unsafe fn enable_secure_boot(store: &VZEFIVariableStore) -> Result<(), Strin
 ///
 /// # Safety
 /// Call on the main thread.
-pub unsafe fn provisioning(account: &Account) -> Option<Retained<VZMacOSVirtualMachineStartOptions>> {
+pub unsafe fn provisioning(
+  account: &Account,
+) -> Option<Retained<VZMacOSVirtualMachineStartOptions>> {
   let class = AnyClass::get(c"VZMacGuestProvisioningOptions")?;
   let options: Retained<AnyObject> = msg_send![class, new];
   let _: () = msg_send![&options, setFullName: &*string(&account.fullname)];

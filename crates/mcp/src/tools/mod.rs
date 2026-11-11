@@ -36,7 +36,8 @@ impl Context {
   pub async fn machine(&self, args: &Value) -> Result<Bundle, String> {
     let store = self.store().await?;
     allowed(store).await?;
-    let (_, bundle) = crate::machine::find(store, &text(args, "machine").unwrap_or_default()).await?;
+    let (_, bundle) =
+      crate::machine::find(store, &text(args, "machine").unwrap_or_default()).await?;
     if !bundle.config.agents {
       return Err(format!(
         "Agent control is turned off for {}. The person at this Mac can turn it on in the machine's settings in Vista.",
@@ -95,7 +96,15 @@ pub fn machine_arg() -> Value {
 }
 
 /// A tool definition.
-pub fn tool(name: &str, title: &str, description: &str, properties: Value, required: &[&str], read_only: bool, destructive: bool) -> Value {
+pub fn tool(
+  name: &str,
+  title: &str,
+  description: &str,
+  properties: Value,
+  required: &[&str],
+  read_only: bool,
+  destructive: bool,
+) -> Value {
   json!({
     "name": name,
     "title": title,
@@ -147,9 +156,15 @@ pub async fn call(context: &Context, name: &str, args: Value) -> Output {
 }
 
 /// A running machine's answer to `request`, or an error saying it's off.
-pub async fn ask(bundle: &Bundle, request: &vista_kit::ipc::Request) -> Result<vista_kit::ipc::Response, String> {
+pub async fn ask(
+  bundle: &Bundle,
+  request: &vista_kit::ipc::Request,
+) -> Result<vista_kit::ipc::Response, String> {
   if vista_kit::ipc::status(&bundle.config.id).await.is_none() {
-    return Err(format!("{} isn't running. start_machine starts it.", bundle.config.name));
+    return Err(format!(
+      "{} isn't running. start_machine starts it.",
+      bundle.config.name
+    ));
   }
   vista_kit::ipc::call(&bundle.config.id, request)
     .await

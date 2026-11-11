@@ -141,7 +141,9 @@ unsafe fn prepare(bundle: &mut Bundle, image: &VZMacOSRestoreImage) -> Result<()
   .map_err(|err| format!("Couldn't create the boot storage: {}", describe(&err)))?;
 
   let config = &mut bundle.config;
-  config.cpus = config.cpus.max(requirements.minimumSupportedCPUCount() as u32);
+  config.cpus = config
+    .cpus
+    .max(requirements.minimumSupportedCPUCount() as u32);
   let minimum = requirements.minimumSupportedMemorySize() / (1024 * 1024);
   config.memory = config.memory.max(minimum);
   bundle::save(&bundle.path, config).map_err(|e| e.to_string())

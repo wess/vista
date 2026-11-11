@@ -18,7 +18,9 @@ fn lookup(name: &str) -> Option<User> {
     name: name.to_string(),
     uid: entry.pw_uid,
     gid: entry.pw_gid,
-    home: unsafe { std::ffi::CStr::from_ptr(entry.pw_dir) }.to_string_lossy().to_string(),
+    home: unsafe { std::ffi::CStr::from_ptr(entry.pw_dir) }
+      .to_string_lossy()
+      .to_string(),
   })
 }
 
@@ -35,7 +37,9 @@ pub fn console() -> Option<User> {
     if entry.is_null() {
       return None;
     }
-    let name = unsafe { std::ffi::CStr::from_ptr((*entry).pw_name) }.to_string_lossy().to_string();
+    let name = unsafe { std::ffi::CStr::from_ptr((*entry).pw_name) }
+      .to_string_lossy()
+      .to_string();
     return lookup(&name);
   }
   let passwd = std::fs::read_to_string("/etc/passwd").ok()?;

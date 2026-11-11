@@ -39,9 +39,9 @@ scripts/dmg.sh               # dist/Vista.app -> dist/Vista.dmg
 `bundle.sh` builds the three binaries and Vista Tools, lays out the bundle
 (see [Installing Vista](install.md#what-is-in-the-app)), writes both
 `Info.plist` files, and signs inside out: Vista Tools, the helper's binary,
-the helper app, `vistamcp`, `vista`, the app. With `CODESIGN_IDENTITY` set to
-a Developer ID it signs with the hardened runtime and a timestamp, ready for
-notarization; otherwise ad hoc.
+the helper app, `vistamcp`, `vista`, the app. It uses the first local Developer
+ID Application identity when one exists, or an explicit `CODESIGN_IDENTITY`;
+set that variable to `-` for an ad-hoc development build.
 
 The release profile uses fat LTO and strips symbols. Build scripts and proc
 macros are exempt from stripping: macOS 27 refuses to load stripped proc
@@ -115,9 +115,21 @@ printf '%s\n' '{"op":"type","text":"uname -a\n"}' | nc -U /tmp/vista$(id -u)/<id
 
 ## Releasing
 
-Bump `version` in the workspace `Cargo.toml`, build with a Developer ID
-(`CODESIGN_IDENTITY=… scripts/bundle.sh`), notarize and staple the app,
-then `scripts/dmg.sh`.
+The Release workflow takes an explicit `vX.Y.Z` tag, verifies it matches the
+workspace version, runs formatting, tests and Clippy, then builds, signs and
+notarizes both the app and disk image. It publishes the release only after
+those checks pass and updates `wess/homebrew-packages` with the exact download
+checksum. The workflow requires the Apple signing/notarization secrets and
+`HOMEBREW_TAP_TOKEN` configured in the repository.
+
+For a local release, the equivalent order is:
+
+```sh
+scripts/bundle.sh
+scripts/notarize.sh dist/Vista.app
+scripts/dmg.sh
+scripts/notarize.sh dist/Vista.dmg
+```
 
 Windows media packaging requires `wimlib` on the build Mac (`brew install wimlib`).
 `scripts/windows.sh` copies its executable, library, licenses and source link into

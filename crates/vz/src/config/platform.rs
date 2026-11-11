@@ -21,7 +21,9 @@ unsafe fn mac(vm: &VZVirtualMachineConfiguration, bundle: &Bundle) -> Result<(),
   let platform = VZMacPlatformConfiguration::new();
 
   let model = read_data(&bundle.file(HARDWARE))
-    .and_then(|data| VZMacHardwareModel::initWithDataRepresentation(VZMacHardwareModel::alloc(), &data))
+    .and_then(|data| {
+      VZMacHardwareModel::initWithDataRepresentation(VZMacHardwareModel::alloc(), &data)
+    })
     .ok_or("This Mac machine has no hardware model. Was macOS installed?")?;
   if !model.isSupported() {
     return Err("This Mac can't run the macOS version installed in this machine.".into());
@@ -46,9 +48,9 @@ unsafe fn mac(vm: &VZVirtualMachineConfiguration, bundle: &Bundle) -> Result<(),
 /// The machine identifier, minted on first use and kept in the bundle.
 unsafe fn mac_identifier(bundle: &Bundle) -> Retained<VZMacMachineIdentifier> {
   let path = bundle.file(MACHINEID);
-  if let Some(identifier) = read_data(&path)
-    .and_then(|data| VZMacMachineIdentifier::initWithDataRepresentation(VZMacMachineIdentifier::alloc(), &data))
-  {
+  if let Some(identifier) = read_data(&path).and_then(|data| {
+    VZMacMachineIdentifier::initWithDataRepresentation(VZMacMachineIdentifier::alloc(), &data)
+  }) {
     return identifier;
   }
   let identifier = VZMacMachineIdentifier::new();
@@ -61,7 +63,10 @@ unsafe fn generic(vm: &VZVirtualMachineConfiguration, bundle: &Bundle) -> Result
   let path = bundle.file(MACHINEID);
   let identifier = read_data(&path)
     .and_then(|data: Retained<NSData>| {
-      VZGenericMachineIdentifier::initWithDataRepresentation(VZGenericMachineIdentifier::alloc(), &data)
+      VZGenericMachineIdentifier::initWithDataRepresentation(
+        VZGenericMachineIdentifier::alloc(),
+        &data,
+      )
     })
     .unwrap_or_else(|| {
       let identifier = VZGenericMachineIdentifier::new();
@@ -86,7 +91,12 @@ unsafe fn generic(vm: &VZVirtualMachineConfiguration, bundle: &Bundle) -> Result
       &url(&nvram),
       VZEFIVariableStoreInitializationOptions::empty(),
     )
-    .map_err(|err| format!("Couldn't create the machine's firmware storage: {}", describe(&err)))?;
+    .map_err(|err| {
+      format!(
+        "Couldn't create the machine's firmware storage: {}",
+        describe(&err)
+      )
+    })?;
     if bundle.config.secureboot {
       crate::modern::enable_secure_boot(&store)?;
     }

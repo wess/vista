@@ -51,7 +51,10 @@ mod tests {
   #[test]
   fn gnu() {
     let text = format!("{H}  other.iso\n{H} *ubuntu.iso\n");
-    assert_eq!(parse_sums(&text, "ubuntu.iso", SumFormat::Gnu).as_deref(), Some(H));
+    assert_eq!(
+      parse_sums(&text, "ubuntu.iso", SumFormat::Gnu).as_deref(),
+      Some(H)
+    );
     assert_eq!(parse_sums(&text, "nope.iso", SumFormat::Gnu), None);
   }
 
@@ -60,13 +63,22 @@ mod tests {
     let text = format!(
       "-----BEGIN PGP SIGNED MESSAGE-----\nHash: SHA256\n\n# Fedora.iso: 1 bytes\nSHA256 (Fedora.iso) = {H}\n-----BEGIN PGP SIGNATURE-----\n"
     );
-    assert_eq!(parse_sums(&text, "Fedora.iso", SumFormat::Bsd).as_deref(), Some(H));
+    assert_eq!(
+      parse_sums(&text, "Fedora.iso", SumFormat::Bsd).as_deref(),
+      Some(H)
+    );
   }
 
   #[test]
   fn single() {
-    assert_eq!(parse_sums(H, "x.iso", SumFormat::Single).as_deref(), Some(H));
+    assert_eq!(
+      parse_sums(H, "x.iso", SumFormat::Single).as_deref(),
+      Some(H)
+    );
     let text = format!("{H}  x.iso");
-    assert_eq!(parse_sums(&text, "x.iso", SumFormat::Single).as_deref(), Some(H));
+    assert_eq!(
+      parse_sums(&text, "x.iso", SumFormat::Single).as_deref(),
+      Some(H)
+    );
   }
 }

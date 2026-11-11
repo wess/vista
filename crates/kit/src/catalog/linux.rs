@@ -199,7 +199,11 @@ mod tests {
     let mut seen = std::collections::HashSet::new();
     for entry in LINUX {
       assert!(seen.insert(entry.id), "duplicate id {}", entry.id);
-      assert!(super::super::family_name(entry.family).is_some(), "{}", entry.family);
+      assert!(
+        super::super::family_name(entry.family).is_some(),
+        "{}",
+        entry.family
+      );
       if let Source::Listing { pattern, .. } | Source::Sums { pattern, .. } = entry.source {
         regex::Regex::new(pattern).unwrap();
       }

@@ -9,7 +9,9 @@ mod panel;
 
 use std::cell::RefCell;
 
-use gpui::{px, size, App, AppContext, Bounds, Point, WindowBounds, WindowHandle, WindowKind, WindowOptions};
+use gpui::{
+  px, size, App, AppContext, Bounds, Point, WindowBounds, WindowHandle, WindowKind, WindowOptions,
+};
 use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, NSObject};
 use objc2::{define_class, msg_send, sel, MainThreadMarker, MainThreadOnly};
@@ -73,7 +75,9 @@ fn anchor() -> Option<Point<gpui::Pixels>> {
 }
 
 pub fn install(cx: &mut App) {
-  let Some(mtm) = MainThreadMarker::new() else { return };
+  let Some(mtm) = MainThreadMarker::new() else {
+    return;
+  };
   let (tx, mut rx) = mpsc::unbounded_channel();
   CLICKS.with(|c| *c.borrow_mut() = Some(tx));
   let target = Target::new(mtm);
@@ -127,7 +131,10 @@ pub fn toggle(cx: &mut App) {
   let height = (118.0 + rows.min(8.0) * 52.0).min(560.0);
   let origin = anchor().unwrap_or_else(|| Point::new(px(1200.), px(30.)));
   let options = WindowOptions {
-    window_bounds: Some(WindowBounds::Windowed(Bounds::new(origin, size(px(WIDTH), px(height))))),
+    window_bounds: Some(WindowBounds::Windowed(Bounds::new(
+      origin,
+      size(px(WIDTH), px(height)),
+    ))),
     titlebar: None,
     focus: true,
     show: true,

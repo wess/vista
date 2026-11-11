@@ -47,9 +47,14 @@ pub fn read(path: &str, offset: u64, length: Option<u64>) -> Result<Response, St
   let mut file = std::fs::File::open(path).map_err(|e| error(path, e))?;
   let size = file.metadata().map_err(|e| error(path, e))?.len();
   let want = length.unwrap_or(MAX_FILE).min(MAX_FILE);
-  file.seek(SeekFrom::Start(offset)).map_err(|e| error(path, e))?;
+  file
+    .seek(SeekFrom::Start(offset))
+    .map_err(|e| error(path, e))?;
   let mut buffer = Vec::new();
-  file.take(want).read_to_end(&mut buffer).map_err(|e| error(path, e))?;
+  file
+    .take(want)
+    .read_to_end(&mut buffer)
+    .map_err(|e| error(path, e))?;
   let eof = offset + buffer.len() as u64 >= size;
   Ok(Response::Data {
     data: b64().encode(&buffer),
@@ -58,7 +63,12 @@ pub fn read(path: &str, offset: u64, length: Option<u64>) -> Result<Response, St
   })
 }
 
-pub fn write(path: &str, data: &str, append: bool, mode: Option<String>) -> Result<Response, String> {
+pub fn write(
+  path: &str,
+  data: &str,
+  append: bool,
+  mode: Option<String>,
+) -> Result<Response, String> {
   let bytes = b64().decode(data).map_err(|e| format!("bad base64: {e}"))?;
   if let Some(parent) = Path::new(path).parent() {
     std::fs::create_dir_all(parent).map_err(|e| error(path, e))?;
@@ -73,7 +83,8 @@ pub fn write(path: &str, data: &str, append: bool, mode: Option<String>) -> Resu
   file.write_all(&bytes).map_err(|e| error(path, e))?;
   if let Some(mode) = mode {
     let bits = u32::from_str_radix(&mode, 8).map_err(|_| format!("bad mode {mode}"))?;
-    std::fs::set_permissions(path, std::fs::Permissions::from_mode(bits)).map_err(|e| error(path, e))?;
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(bits))
+      .map_err(|e| error(path, e))?;
   }
   Ok(Response::Ok)
 }

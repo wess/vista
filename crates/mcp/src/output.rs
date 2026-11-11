@@ -48,7 +48,11 @@ impl Output {
     let mut out = json!({"content": self.content, "isError": self.error});
     if let Some(data) = self.structured {
       // structuredContent must be an object.
-      out["structuredContent"] = if data.is_object() { data } else { json!({"result": data}) };
+      out["structuredContent"] = if data.is_object() {
+        data
+      } else {
+        json!({"result": data})
+      };
     }
     out
   }

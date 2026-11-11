@@ -84,5 +84,9 @@ pub fn state_color(state: vista_kit::machine::State) -> Hsla {
 }
 
 pub fn dot(state: vista_kit::machine::State) -> impl IntoElement {
-  div().size(px(8.)).rounded_full().bg(state_color(state)).flex_none()
+  div()
+    .size(px(8.))
+    .rounded_full()
+    .bg(state_color(state))
+    .flex_none()
 }

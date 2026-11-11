@@ -5,6 +5,8 @@ mod config;
 mod live;
 mod os;
 
-pub use config::{now, random_mac, Account, Bus, Config, Disk, Display, Installer, Network, Share, FORMAT};
+pub use config::{
+  now, random_mac, Account, Bus, Config, Disk, Display, Installer, Network, Share, FORMAT,
+};
 pub use live::{Live, State};
 pub use os::Os;

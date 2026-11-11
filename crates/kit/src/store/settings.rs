@@ -2,6 +2,7 @@
 //! without a migration, and an older one ignores keys it doesn't know.
 
 use serde::{Deserialize, Serialize};
+use tokio_rusqlite::rusqlite::{params, OptionalExtension};
 
 use super::Store;
 use crate::Result;
@@ -45,22 +46,34 @@ impl Default for Settings {
 
 impl Store {
   pub async fn setting<T: serde::de::DeserializeOwned>(&self, key: &str) -> Result<Option<T>> {
-    let row: Option<String> = sqlx::query_scalar("SELECT value FROM settings WHERE key = ?1")
-      .bind(key)
-      .fetch_optional(self.pool())
+    let key = key.to_string();
+    let row: Option<String> = self
+      .connection()
+      .call(move |connection| {
+        connection
+          .query_row("SELECT value FROM settings WHERE key = ?1", [key], |row| {
+            row.get(0)
+          })
+          .optional()
+      })
       .await?;
     Ok(row.and_then(|value| serde_json::from_str(&value).ok()))
   }
 
   pub async fn set_setting<T: Serialize>(&self, key: &str, value: &T) -> Result<()> {
-    sqlx::query(
-      "INSERT INTO settings (key, value) VALUES (?1, ?2)
-       ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-    )
-    .bind(key)
-    .bind(serde_json::to_string(value)?)
-    .execute(self.pool())
-    .await?;
+    let key = key.to_string();
+    let value = serde_json::to_string(value)?;
+    self
+      .connection()
+      .call(move |connection| {
+        connection.execute(
+          "INSERT INTO settings (key, value) VALUES (?1, ?2)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+          params![key, value],
+        )?;
+        Ok(())
+      })
+      .await?;
     Ok(())
   }
 

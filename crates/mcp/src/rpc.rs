@@ -53,7 +53,10 @@ async fn handle(context: &crate::tools::Context, message: Value) -> Option<Value
         .get("protocolVersion")
         .and_then(Value::as_str)
         .unwrap_or(VERSIONS[0]);
-      let version = VERSIONS.iter().find(|v| **v == asked).unwrap_or(&VERSIONS[0]);
+      let version = VERSIONS
+        .iter()
+        .find(|v| **v == asked)
+        .unwrap_or(&VERSIONS[0]);
       Ok(json!({
         "protocolVersion": version,
         "capabilities": {"tools": {"listChanged": false}},
@@ -69,7 +72,10 @@ async fn handle(context: &crate::tools::Context, message: Value) -> Option<Value
     "tools/list" => Ok(json!({"tools": crate::tools::list()})),
     "tools/call" => {
       let name = params.get("name").and_then(Value::as_str).unwrap_or("");
-      let args = params.get("arguments").cloned().unwrap_or_else(|| json!({}));
+      let args = params
+        .get("arguments")
+        .cloned()
+        .unwrap_or_else(|| json!({}));
       Ok(crate::tools::call(context, name, args).await.into_json())
     }
     "resources/list" => Ok(json!({"resources": []})),

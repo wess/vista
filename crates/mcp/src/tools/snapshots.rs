@@ -69,7 +69,10 @@ pub async fn call(context: &Context, name: &str, args: &Value) -> Option<Result<
   })
 }
 
-fn pick(bundle: &vista_kit::bundle::Bundle, reference: &str) -> Result<vista_kit::bundle::Snapshot, String> {
+fn pick(
+  bundle: &vista_kit::bundle::Bundle,
+  reference: &str,
+) -> Result<vista_kit::bundle::Snapshot, String> {
   let list = Snapshots::list(bundle);
   list
     .iter()
@@ -115,7 +118,10 @@ async fn revert(context: &Context, args: &Value) -> Result<Output, String> {
   let id = bundle.config.id.clone();
   if vista_kit::ipc::status(&id).await.is_some() {
     if flag(args, "stop_first") != Some(true) {
-      return Err(format!("{} is running. Stop it, or pass stop_first=true.", bundle.config.name));
+      return Err(format!(
+        "{} is running. Stop it, or pass stop_first=true.",
+        bundle.config.name
+      ));
     }
     let _ = vista_kit::ipc::call(&id, &Request::Kill).await;
     for _ in 0..40 {
@@ -134,7 +140,11 @@ async fn revert(context: &Context, args: &Value) -> Result<Output, String> {
     "{} is back at \"{}\"{}.",
     bundle.config.name,
     snapshot.name,
-    if snapshot.live { " (suspended there: start_machine resumes it)" } else { "" }
+    if snapshot.live {
+      " (suspended there: start_machine resumes it)"
+    } else {
+      ""
+    }
   )))
 }
 

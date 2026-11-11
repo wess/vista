@@ -167,18 +167,22 @@ pub async fn capture(bundle: &Bundle) -> Result<(String, u32, u32), String> {
 async fn screenshot(context: &Context, args: &Value) -> Result<Output, String> {
   let bundle = context.machine(args).await?;
   let (png, width, height) = capture(&bundle).await?;
-  Ok(Output::text(format!(
+  Ok(
+    Output::text(format!(
     "{}'s screen: {width}×{height} pixels. Pointer coordinates use these pixels, origin top-left.",
     bundle.config.name
   ))
-  .with_image(png))
+    .with_image(png),
+  )
 }
 
 async fn finish(bundle: &Bundle, args: &Value, done: String) -> Result<Output, String> {
   if flag(args, "screenshot") != Some(true) {
     return Ok(Output::text(done));
   }
-  let wait = number(args, "settle_ms").unwrap_or(600.0).clamp(0.0, 10_000.0);
+  let wait = number(args, "settle_ms")
+    .unwrap_or(600.0)
+    .clamp(0.0, 10_000.0);
   tokio::time::sleep(Duration::from_millis(wait as u64)).await;
   let (png, width, height) = capture(bundle).await?;
   Ok(Output::text(format!("{done} Screen now ({width}×{height}):")).with_image(png))
@@ -220,7 +224,12 @@ async fn scroll(context: &Context, args: &Value) -> Result<Output, String> {
   let dx = number(args, "dx").unwrap_or(0.0);
   let dy = number(args, "dy").unwrap_or(0.0);
   ask(&bundle, &Request::Scroll { x, y, dx, dy }).await?;
-  finish(&bundle, args, format!("Scrolled ({dx:.0}, {dy:.0}) at ({x:.0}, {y:.0}).")).await
+  finish(
+    &bundle,
+    args,
+    format!("Scrolled ({dx:.0}, {dy:.0}) at ({x:.0}, {y:.0})."),
+  )
+  .await
 }
 
 async fn keyboard(context: &Context, args: &Value, typing: bool) -> Result<Output, String> {
@@ -231,7 +240,10 @@ async fn keyboard(context: &Context, args: &Value, typing: bool) -> Result<Outpu
     (Request::Type { text }, format!("Typed {count} characters."))
   } else {
     let keys = required(args, "keys")?;
-    (Request::Key { keys: keys.clone() }, format!("Pressed {keys}."))
+    (
+      Request::Key { keys: keys.clone() },
+      format!("Pressed {keys}."),
+    )
   };
   ask(&bundle, &request).await?;
   finish(&bundle, args, done).await
