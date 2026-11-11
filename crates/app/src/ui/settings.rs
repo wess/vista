@@ -233,7 +233,7 @@ impl Render for SettingsPage {
           .child(heading("About", cx))
           .child(row(
             "Vista",
-            &format!("Version {} · MIT licensed · no accounts, no tracking", env!("CARGO_PKG_VERSION")),
+            &format!("Version {} · Apache 2.0 licensed · no accounts, no tracking", env!("CARGO_PKG_VERSION")),
             Button::new("github", "GitHub")
               .size(Size::Sm)
               .variant(Variant::Default)
