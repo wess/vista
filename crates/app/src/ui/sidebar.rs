@@ -1,0 +1,229 @@
+//! The machine list, with creation jobs underneath and a button to make one.
+
+use gpui::prelude::*;
+use gpui::{div, px, App, Entity, IntoElement};
+use guise::prelude::*;
+use vista_kit::jobs::{Job, Phase};
+
+use super::format;
+use super::glyph;
+use super::root::SIDEBAR;
+use crate::state::{Library, Machine, Page};
+
+fn row(machine: &Machine, selected: bool, library: &Entity<Library>, cx: &App) -> impl IntoElement {
+  let t = theme(cx);
+  let text = t.text().hsla();
+  let dimmed = t.dimmed().hsla();
+  let hover = t.surface_hover().hsla();
+  let active = t.primary().alpha(0.14);
+  let state = machine.state();
+  let subtitle = match (&machine.live, state) {
+    (Some(live), vista_kit::machine::State::Installing) => {
+      format!("Installing {}%", (live.progress.unwrap_or(0.0) * 100.0).round())
+    }
+    (Some(live), vista_kit::machine::State::Running) if live.uptime > 0 => {
+      format!("Running · {}", format::duration(live.uptime))
+    }
+    _ if machine.bundle.is_none() => "Missing".into(),
+    _ => state.label().to_string(),
+  };
+  let id = machine.id().to_string();
+  let library = library.clone();
+  div()
+    .id(gpui::SharedString::from(format!("machine-{id}")))
+    .flex()
+    .items_center()
+    .gap(px(10.))
+    .mx(px(8.))
+    .px(px(8.))
+    .py(px(7.))
+    .rounded(px(8.))
+    .when(selected, |d| d.bg(active))
+    .when(!selected, |d| d.hover(move |s| s.bg(hover)))
+    .cursor_pointer()
+    .on_click(move |_, _, cx| {
+      let id = id.clone();
+      library.update(cx, |l, cx| l.select(Page::Machine(id), cx));
+    })
+    .child(glyph::badge(machine.family(), 30.))
+    .child(
+      div()
+        .flex()
+        .flex_col()
+        .flex_1()
+        .min_w(px(0.))
+        .child(
+          div()
+            .text_size(px(13.))
+            .font_weight(gpui::FontWeight::MEDIUM)
+            .text_color(text)
+            .text_ellipsis()
+            .overflow_hidden()
+            .whitespace_nowrap()
+            .child(machine.name().to_string()),
+        )
+        .child(
+          div()
+            .flex()
+            .items_center()
+            .gap(px(5.))
+            .text_size(px(11.))
+            .text_color(dimmed)
+            .child(glyph::dot(state))
+            .child(subtitle),
+        ),
+    )
+}
+
+fn job_row(job: &Job, library: &Entity<Library>, cx: &App) -> impl IntoElement {
+  let t = theme(cx);
+  let dimmed = t.dimmed().hsla();
+  let text = t.text().hsla();
+  let name = if job.spec.name.is_empty() {
+    job
+      .spec
+      .system
+      .as_deref()
+      .and_then(vista_kit::catalog::find)
+      .map(|e| e.title())
+      .unwrap_or_else(|| "New machine".into())
+  } else {
+    job.spec.name.clone()
+  };
+  let family = job
+    .spec
+    .system
+    .as_deref()
+    .and_then(vista_kit::catalog::find)
+    .map(|e| e.family)
+    .unwrap_or("linux");
+  let status = match (job.phase, job.fraction()) {
+    (Phase::Downloading, Some(f)) => format!(
+      "{} of {}",
+      format::bytes(job.received),
+      format::bytes(job.total.unwrap_or(0))
+    )
+    .replace(&format!(" of {}", format::bytes(0)), "")
+      + &format!(" · {:.0}%", f * 100.0),
+    (phase, _) => job.message.clone().filter(|_| phase == Phase::Failed).unwrap_or_else(|| phase.label().to_string()),
+  };
+  let finished = job.phase.is_finished();
+  let fraction = job.fraction().unwrap_or(0.0) as f32;
+  let id = job.id.clone();
+  let library = library.clone();
+  div()
+    .flex()
+    .flex_col()
+    .gap(px(6.))
+    .mx(px(8.))
+    .px(px(8.))
+    .py(px(8.))
+    .child(
+      div()
+        .flex()
+        .items_center()
+        .gap(px(10.))
+        .child(div().opacity(0.6).child(glyph::badge(family, 30.)))
+        .child(
+          div()
+            .flex()
+            .flex_col()
+            .flex_1()
+            .min_w(px(0.))
+            .child(div().text_size(px(13.)).text_color(text).overflow_hidden().whitespace_nowrap().text_ellipsis().child(name))
+            .child(div().text_size(px(11.)).text_color(dimmed).overflow_hidden().whitespace_nowrap().text_ellipsis().child(status)),
+        )
+        .child(
+          ActionIcon::new(gpui::SharedString::from(format!("job-{id}")), IconName::X)
+            .label(if finished { "Dismiss" } else { "Cancel" })
+            .variant(Variant::Subtle)
+            .size(Size::Sm)
+            .on_click(move |_, _, cx| {
+              let id = id.clone();
+              library.update(cx, |l, cx| {
+                if finished {
+                  l.dismiss_job(&id, cx)
+                } else {
+                  l.cancel_job(&id, cx)
+                }
+              });
+            }),
+        ),
+    )
+    .when(!finished, |d| d.child(Progress::new(fraction * 100.0).size(Size::Xs)))
+}
+
+fn heading(label: &str, cx: &App) -> impl IntoElement {
+  let dimmed = theme(cx).dimmed().hsla();
+  div()
+    .px(px(16.))
+    .pt(px(14.))
+    .pb(px(6.))
+    .text_size(px(11.))
+    .font_weight(gpui::FontWeight::SEMIBOLD)
+    .text_color(dimmed)
+    .child(label.to_uppercase())
+}
+
+pub fn render(library: &Entity<Library>, cx: &App) -> impl IntoElement {
+  let t = theme(cx);
+  let side = t.surface().hsla();
+  let border = t.border().hsla();
+  let lib = library.read(cx);
+  let selected = match &lib.page {
+    Page::Machine(id) => Some(id.clone()),
+    _ => None,
+  };
+  let jobs: Vec<Job> = lib
+    .jobs
+    .iter()
+    .filter(|j| j.phase != Phase::Done)
+    .cloned()
+    .collect();
+  let rows: Vec<gpui::AnyElement> = lib
+    .machines
+    .iter()
+    .map(|m| row(m, selected.as_deref() == Some(m.id()), library, cx).into_any_element())
+    .collect();
+  let job_rows: Vec<gpui::AnyElement> = jobs.iter().map(|j| job_row(j, library, cx).into_any_element()).collect();
+  let empty = rows.is_empty();
+  let new = library.clone();
+  div()
+    .flex()
+    .flex_col()
+    .flex_none()
+    .w(px(SIDEBAR))
+    .h_full()
+    .bg(side)
+    .border_r_1()
+    .border_color(border)
+    .child(
+      div()
+        .id("machines")
+        .flex()
+        .flex_col()
+        .flex_1()
+        .overflow_y_scroll()
+        .child(heading("Machines", cx))
+        .when(empty, |d| {
+          d.child(
+            div()
+              .px(px(16.))
+              .text_size(px(12.))
+              .text_color(theme(cx).dimmed().hsla())
+              .child("No machines yet."),
+          )
+        })
+        .children(rows)
+        .when(!job_rows.is_empty(), |d| d.child(heading("Creating", cx)).children(job_rows)),
+    )
+    .child(
+      div().p(px(12.)).border_t_1().border_color(border).child(
+        Button::new("sidebar-new", "New Machine")
+          .full_width(true)
+          .variant(Variant::Default)
+          .left_section(Icon::new(IconName::Plus).size(Size::Sm))
+          .on_click(move |_, _, cx| new.update(cx, |l, cx| l.select(Page::Create, cx))),
+      ),
+    )
+}

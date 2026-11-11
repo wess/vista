@@ -1,0 +1,5 @@
+# Vista Tools runs inside Linux guests as a static musl binary. rust-lld and
+# the target's own crt objects link it on a Mac with no extra toolchain.
+[target.aarch64-unknown-linux-musl]
+linker = "rust-lld"
+rustflags = ["-C", "link-self-contained=yes", "-C", "target-feature=+crt-static"]

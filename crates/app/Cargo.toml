@@ -1,0 +1,24 @@
+[package]
+name = "vista-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+description = "Vista — virtual machines for Apple silicon."
+
+[[bin]]
+name = "vista"
+path = "src/main.rs"
+
+[dependencies]
+gpui = { workspace = true }
+guise-ui = { workspace = true }
+vista-kit = { workspace = true }
+tokio = { workspace = true }
+serde_json = { workspace = true }
+base64 = { workspace = true }
+objc2 = { workspace = true }
+objc2-foundation = { workspace = true }
+objc2-app-kit = { workspace = true }
+raw-window-handle = "0.6"

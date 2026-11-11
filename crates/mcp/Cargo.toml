@@ -1,0 +1,20 @@
+[package]
+name = "vista-mcp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+description = "Vista's MCP server: lets coding agents create, run and drive virtual machines."
+
+[[bin]]
+name = "vistamcp"
+path = "src/main.rs"
+
+[dependencies]
+vista-kit = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+base64 = { workspace = true }
+libc = { workspace = true }

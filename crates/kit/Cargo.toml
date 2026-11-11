@@ -1,0 +1,22 @@
+[package]
+name = "vista-kit"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+description = "Vista's shared core: machine model, library store, OS catalog, downloads, and the control protocol."
+
+[dependencies]
+vista-guest = { workspace = true }
+tokio = { workspace = true }
+sqlx = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+futures = { workspace = true }
+regex = { workspace = true }
+sha2 = { workspace = true }
+uuid = { workspace = true }
+thiserror = { workspace = true }
+libc = { workspace = true }

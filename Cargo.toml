@@ -1,0 +1,68 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/guest",
+  "crates/kit",
+  "crates/vz",
+  "crates/machine",
+  "crates/mcp",
+  "crates/tools",
+  "crates/app",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+authors = ["Wess Cope <opensource@wess.io>"]
+repository = "https://github.com/wess/vista"
+homepage = "https://github.com/wess/vista"
+keywords = ["virtualization", "vm", "macos", "gpui"]
+categories = ["virtualization"]
+
+[workspace.dependencies]
+gpui = "0.2.2"
+guise-ui = { version = "1.10", default-features = false }
+
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util", "io-std", "fs", "sync", "time", "process"] }
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "sqlite", "macros"] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "stream", "json", "http2", "cookies"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+futures = "0.3"
+regex = "1"
+sha2 = "0.10"
+uuid = { version = "1", features = ["v4", "serde"] }
+thiserror = "2"
+libc = "0.2"
+base64 = "0.22"
+
+objc2 = "0.6"
+objc2-foundation = "0.3"
+objc2-app-kit = "0.3"
+objc2-virtualization = "0.3"
+block2 = "0.6"
+dispatch2 = "0.3"
+
+vista-kit = { path = "crates/kit" }
+vista-guest = { path = "crates/guest" }
+vista-vz = { path = "crates/vz" }
+
+[profile.dev]
+debug = "limited"
+
+# gpui's layout and text shaping run every frame; at opt-level 0 the UI is
+# visibly sluggish. Dependencies rebuild only when the lockfile moves.
+[profile.dev.package."*"]
+opt-level = 2
+
+# Proc macros and build scripts run on this Mac at build time; stripping
+# them leaves dylibs the loader on macOS 27 refuses to open.
+[profile.release.build-override]
+strip = false
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
