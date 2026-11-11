@@ -131,4 +131,4 @@ framework and AppKit.
 
 Apache License 2.0. See [LICENSE](LICENSE).
 
-Full documentation is also published at [wess.github.io/vista](https://wess.github.io/vista/).
+Full documentation is also published at [wess.io/vista](https://wess.io/vista/).

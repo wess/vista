@@ -3,7 +3,7 @@ import { basename, join } from "node:path";
 
 const root = join(import.meta.dir, "..");
 const output = join(root, "site");
-const siteurl = "https://wess.github.io/vista/";
+const siteurl = "https://wess.io/vista/";
 const repository = "https://github.com/wess/vista";
 
 type Page = {

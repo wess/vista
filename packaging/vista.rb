@@ -5,7 +5,7 @@ cask "vista" do
   url "https://github.com/wess/vista/releases/download/v#{version}/Vista.dmg"
   name "Vista"
   desc "Native virtual machines for Apple silicon"
-  homepage "https://wess.github.io/vista/"
+  homepage "https://wess.io/vista/"
 
   depends_on arch: :arm64
   depends_on macos: :sequoia

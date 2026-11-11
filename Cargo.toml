@@ -16,7 +16,7 @@ edition = "2021"
 license = "Apache-2.0"
 authors = ["Wess Cope <opensource@wess.io>"]
 repository = "https://github.com/wess/vista"
-homepage = "https://wess.github.io/vista/"
+homepage = "https://wess.io/vista/"
 keywords = ["virtualization", "vm", "macos", "gpui"]
 categories = ["virtualization"]
 
