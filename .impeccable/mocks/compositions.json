@@ -1,0 +1,41 @@
+{
+  "title": "Choose the VISTA 128 composition",
+  "question": "Which composition should become the real Vista home page?",
+  "options": [
+    {
+      "id": "computer",
+      "label": "The whole computer",
+      "kicker": "DIRECT",
+      "thesis": "The opening viewport is one complete VISTA 128 machine with screen, keys, and manual below.",
+      "palette": ["#c9b991", "#24150d", "#2420a8", "#bcbcff", "#f26a22"],
+      "materials": ["molded plastic", "cobalt CRT", "physical function keys"],
+      "viewport": "The computer fills the frame; screen commands and function keys perform navigation.",
+      "risk": "The full keyboard can consume too much space on smaller laptops.",
+      "comp": ".impeccable/mocks/vista-c128-computer.png"
+    },
+    {
+      "id": "desktop",
+      "label": "VISTA 128 desktop",
+      "kicker": "WORKING OS",
+      "thesis": "A cobalt windowed operating system lets visitors explore Vista before they download it.",
+      "palette": ["#d4c6a3", "#32180d", "#1715b5", "#b9baff", "#ff6b10"],
+      "materials": ["80s window chrome", "molded display frame", "pixel controls"],
+      "viewport": "One large command window leads, with catalog and system-monitor windows behind it.",
+      "risk": "Needs disciplined z-order and mobile adaptation to avoid novelty clutter.",
+      "comp": ".impeccable/mocks/vista-c128-desktop.png"
+    },
+    {
+      "id": "manual",
+      "label": "The living manual",
+      "kicker": "BOLDEST",
+      "thesis": "A programmer’s reference manual has a working cobalt terminal physically inset into its page.",
+      "palette": ["#d8bd88", "#3b1b0f", "#1112a8", "#c5c5ff", "#ef6417"],
+      "materials": ["technical manual stock", "inset CRT", "edge index tabs"],
+      "viewport": "The terminal proves the product while annotations and tabs turn the whole page into documentation.",
+      "risk": "The denser manual language asks more attention from first-time visitors.",
+      "comp": ".impeccable/mocks/vista-c128-manual.png"
+    }
+  ],
+  "canon": false,
+  "steer": false
+}

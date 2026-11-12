@@ -100,41 +100,72 @@ const shell = (title: string, summary: string, body: string, path: string, curre
   <meta property="og:url" content="${siteurl}${path}">
   <meta property="og:image" content="${siteurl}icon.png">
   <link rel="canonical" href="${siteurl}${path}">
-  <link rel="icon" href="/vista/icon.png">
-  <link rel="stylesheet" href="/vista/style.css">
+  <link rel="icon" href="${current ? "/vista/icon.png" : "icon.png"}">
+  <link rel="stylesheet" href="${current ? "/vista/style.css" : "style.css"}">
   <title>${escape(title)} · Vista</title>
 </head>
-<body>
-  <header class="topbar">
+<body class="${current ? "docs-page" : "home-page"}">
+  ${current ? `<header class="topbar">
     <a class="brand" href="/vista/"><img src="/vista/icon.png" alt=""><span>Vista</span></a>
     <nav aria-label="Primary"><a href="/vista/docs/install/">Documentation</a><a href="${repository}">GitHub</a></nav>
-  </header>
+  </header>` : ""}
   ${current ? `<div class="docs"><aside><label for="search">Search documentation</label><input id="search" type="search" placeholder="Search"><div class="searchstatus" role="status" aria-live="polite"></div><nav class="docnav" aria-label="Documentation">${nav(current)}</nav></aside>` : ""}
   <main id="content"${current ? ' class="article"' : ""}>${body}</main>
   ${current ? "</div>" : ""}
   <footer><span>Vista is free and open source.</span><a href="${repository}">Apache-2.0 on GitHub</a></footer>
-  <script src="/vista/site.js" defer></script>
+  <script src="${current ? "/vista/site.js" : "site.js"}" defer></script>
 </body>
 </html>`;
 
-const home = `<section class="hero">
-  <div class="eyebrow">Virtualization, native to the Mac</div>
-  <h1>Your operating systems.<br><em>In their own windows.</em></h1>
-  <p>Vista finds, verifies, builds, and runs virtual machines on Apple silicon using macOS’s own Virtualization framework.</p>
-  <div class="actions"><a class="button primary" href="${repository}/releases/latest">Download Vista</a><a class="button" href="/vista/docs/install/">Read the documentation</a></div>
-  <div class="requirements">Apple silicon · macOS 15 or later · no account, licence key, or telemetry</div>
-</section>
-<section class="systems" aria-labelledby="systems-title">
-  <div><span class="kicker">A broad catalog</span><h2 id="systems-title">From macOS to the BSDs.</h2></div>
-  <p>Install current macOS, Ubuntu, Fedora, Debian, Kali, Rocky, AlmaLinux, openSUSE, Pop!_OS, NixOS, Alpine, FreeBSD, OpenBSD, NetBSD, and experimental Windows 11 for Arm.</p>
-</section>
-<section class="features" aria-label="Highlights">
-  <article><span>01</span><h2>One-click machines</h2><p>Vista resolves the current installer from its publisher, verifies the published checksum, and keeps the image for next time.</p></article>
-  <article><span>02</span><h2>Snapshots without the wait</h2><p>APFS copy-on-write snapshots and clones start nearly free, while suspend preserves a running machine’s memory.</p></article>
-  <article><span>03</span><h2>Built for automation</h2><p>The included MCP server exposes lifecycle, configuration, screen, input, snapshot, command, and file tools.</p></article>
-  <article><span>04</span><h2>Mac-native boundaries</h2><p>Each guest runs in its own process. Virtualization, networking, signing, and permissions stay on the platform’s native path.</p></article>
-</section>
-<section class="guide"><span class="kicker">Start here</span><h2>Install the app, then build a machine.</h2><div><a href="/vista/docs/install/"><strong>Installing Vista</strong><small>Requirements, first launch, and storage</small></a><a href="/vista/docs/machines/"><strong>Creating machines</strong><small>Catalog systems, custom images, and jobs</small></a><a href="/vista/docs/agents/"><strong>Connect an agent</strong><small>Control machines through the MCP server</small></a></div></section>`;
+const home = `<section class="retro-shell comp-frame" aria-label="VISTA 128 desktop">
+  <div class="r-page-shell case-surface" aria-hidden="true"></div>
+  <header class="os-menubar-group">
+    <div class="r-menu-bar os-menubar" aria-hidden="true"></div>
+    <a class="r-brand retro-brand" href="/vista/"><span class="brand-stripes" aria-hidden="true"><i></i><i></i><i></i></span><strong>VISTA</strong></a>
+    <nav class="r-menu-items os-menu" aria-label="Primary"><a href="/vista/">VISTA</a><a href="/vista/docs/install/">FILE</a><a href="/vista/docs/machines/">MACHINE</a><a href="/vista/docs/menubar/">WINDOW</a><a href="/vista/docs/troubleshooting/">HELP</a></nav>
+    <span class="r-version version">0.1.0</span>
+  </header>
+  <div class="r-desktop os-desktop" aria-hidden="true"></div>
+  <nav class="r-desktop-icons desktop-icons" aria-label="Desktop shortcuts">
+    <a href="/vista/"><span class="pixel-icon computer-icon" aria-hidden="true"></span><b>VISTA</b></a>
+    <a href="/vista/docs/systems/"><span class="pixel-icon disk-icon" aria-hidden="true"></span><b>CATALOG</b></a>
+    <a href="/vista/docs/install/"><span class="pixel-icon book-icon" aria-hidden="true"></span><b>DOCS</b></a>
+    <a href="/vista/docs/settings/"><span class="pixel-icon gear-icon" aria-hidden="true"></span><b>SETTINGS</b></a>
+  </nav>
+  <section class="window-group" aria-labelledby="catalog-title">
+    <div class="r-catalog-window retro-window catalog-window" aria-hidden="true"><div class="window-bar"><span class="window-glyph"></span></div></div>
+    <h2 id="catalog-title" class="r-catalog-title">CATALOG</h2>
+    <ul class="r-catalog-list">
+      <li><span>■ macOS</span><b>[STABLE]</b></li><li><span>■ Ubuntu</span><b>[STABLE]</b></li><li><span>■ Fedora</span><b>[STABLE]</b></li><li><span>■ Debian</span><b>[STABLE]</b></li><li><span>□ BSD</span><b>[STABLE]</b></li><li><span>□ Windows 11 Arm</span><b>[EXPERIMENTAL]</b></li>
+    </ul>
+  </section>
+  <section class="window-group" aria-labelledby="monitor-title">
+    <div class="r-monitor-window retro-window monitor-window" aria-hidden="true"><div class="window-bar"><span class="monitor-bars"><i></i><i></i><i></i></span></div></div>
+    <h2 id="monitor-title" class="r-monitor-title">SYSTEM MONITOR</h2>
+    <ul class="r-monitor-list"><li>■ 0 TELEMETRY</li><li>■ 1 PROCESS PER GUEST</li><li>■ APFS SNAPSHOTS</li></ul>
+  </section>
+  <section class="window-group" aria-labelledby="terminal-title">
+    <div class="r-terminal-window retro-window terminal-window" aria-hidden="true"><div class="window-bar"><span class="prompt-icon">&gt;_</span></div></div>
+    <h1 id="terminal-title" class="r-terminal-title">VISTA 128</h1>
+    <div class="r-terminal-controls window-controls" aria-hidden="true"><i>−</i><i>□</i><i>×</i></div>
+  </section>
+  <div class="r-terminal-screen terminal-screen" data-terminal-output aria-live="polite"></div>
+  <div class="r-vista-masthead screen-masthead"><span class="masthead-stripes" aria-hidden="true">///</span> VISTA 128</div>
+  <p class="r-vista-tagline screen-tagline">NATIVE VIRTUAL MACHINES FOR APPLE SILICON</p>
+  <div class="r-ready-command terminal-copy"><span>READY.</span><code>&gt; brew install --cask wess/packages/vista</code></div>
+  <p class="r-command-help terminal-help">TYPE A COMMAND: CATALOG, INSTALL, DOCS,<br>SECURITY, OR CLEAR.</p>
+  <form class="r-active-prompt terminal-form" data-terminal-form><label class="sr-only" for="retro-command">Terminal command</label><span>&gt;</span><input id="retro-command" data-terminal-input autocomplete="off" spellcheck="false" aria-describedby="terminal-instructions"></form>
+  <p id="terminal-instructions" class="sr-only">Type help, catalog, install, docs, security, or clear, then press Return.</p>
+  <a class="r-download-key download-key" href="${repository}/releases/latest">DOWNLOAD 0.1.0</a>
+  <div class="r-ready-status ready-status"><i aria-hidden="true"></i><span>READY.</span></div>
+  <nav class="manual-strip-group" aria-label="Manual shortcuts">
+    <div class="r-manual-strip manual-strip" aria-hidden="true"></div>
+    <strong class="r-manual-title">VISTA MANUAL</strong>
+    <a class="r-manual-docs" href="/vista/docs/install/"><span class="manual-symbol book-symbol" aria-hidden="true"></span><b>DOCUMENTATION</b><small>GUIDES, CONFIGURATION, AND USAGE.</small></a>
+    <a class="r-manual-security" href="/vista/docs/security/"><span class="manual-symbol shield-symbol" aria-hidden="true"></span><b>SECURITY</b><small>ISOLATION, DATA, AND TRUST.</small></a>
+    <a class="r-manual-catalog" href="/vista/docs/systems/"><span class="manual-symbol stack-symbol" aria-hidden="true"></span><b>MACHINE CATALOG</b><small>SUPPORTED GUESTS AND STATUS.</small></a>
+  </nav>
+</section>`;
 
 await rm(output, { recursive: true, force: true });
 await mkdir(output, { recursive: true });
@@ -163,6 +194,10 @@ await Bun.write(join(output, "sitemap.xml"), `<?xml version="1.0" encoding="UTF-
 await Bun.write(join(output, "style.css"), Bun.file(join(import.meta.dir, "style.css")));
 await Bun.write(join(output, "site.js"), Bun.file(join(import.meta.dir, "site.js")));
 await Bun.write(join(output, "icon.png"), Bun.file(join(root, "assets", "icon.png")));
+await mkdir(join(output, "fonts"), { recursive: true });
+for (const font of await readdir(join(import.meta.dir, "fonts"))) {
+  await Bun.write(join(output, "fonts", font), Bun.file(join(import.meta.dir, "fonts", font)));
+}
 await Bun.write(join(output, ".nojekyll"), "");
 
 console.log(`Built Vista site with ${pages.length} documentation pages.`);

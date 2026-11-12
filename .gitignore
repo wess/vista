@@ -25,6 +25,12 @@
 !.vscode/settings.json
 .claude/worktrees/
 
+# Local Impeccable build and review evidence
+/.impeccable/build/
+/.impeccable/review/
+/.impeccable/questions/
+/.impeccable/hook.cache.json
+
 # Python
 __pycache__/
 *.pyc
